@@ -484,6 +484,8 @@ function splitArticleKeywords(row: Pick<ArticleRepairRow, "search_keywords" | "t
 }
 
 function shouldRefreshArticleImage(row: ArticleRepairRow, nextCategory: string): boolean {
+  const hasAiImage = row.ai_image_url && row.ai_image_url.trim() && row.ai_image_url !== "null" && row.ai_image_url !== "undefined";
+  if (!hasAiImage) return true;
   const prompt = row.ai_image_prompt || "";
   if (row.category !== nextCategory) return true;
   if (nextCategory !== "தமிழ்நாடு குற்றம்" && /Police Station|Court Building|Investigation/i.test(prompt)) return true;
@@ -583,7 +585,8 @@ export function repairStoredArticleClassifications(database: Database.Database =
       const animationChanged = (row.animation_scene || "") !== nextAnimationScene;
       const useNextVideo = videoChanged || thumbnailChanged || refreshImage;
 
-      if (!refreshImage && !videoChanged && !thumbnailChanged && !animationChanged && row.category === nextCategory) continue;
+      const hasAiImage = row.ai_image_url && row.ai_image_url.trim() && row.ai_image_url !== "null" && row.ai_image_url !== "undefined";
+      if (!refreshImage && !videoChanged && !thumbnailChanged && !animationChanged && row.category === nextCategory && hasAiImage) continue;
 
       update.run(
         nextCategory,

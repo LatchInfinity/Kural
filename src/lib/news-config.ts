@@ -1,6 +1,6 @@
 export const NEWS_RETENTION_DAYS = 2;
 export const NEWS_PER_CATEGORY = 5;
-export const SYNC_INTERVAL_MINUTES = 5;
+export const SYNC_INTERVAL_MINUTES = 1;
 export const MAX_ARTICLES_HOME = 50;
 export const VIDEO_ENABLED = true;
 export const VIDEO_DURATION_SECONDS = 5;

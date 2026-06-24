@@ -5,7 +5,7 @@ import {
   Sprout, CloudRain, GraduationCap, Cpu, ShieldAlert, Building2, Megaphone,
   CarFront, Siren, FlaskConical, TestTubeDiagonal, CloudRainWind,
 } from "lucide-react";
-import { getCategoryEmoji } from "@/lib/category-images";
+import { getCategoryEmoji, getCategoryFallbackImageUrl } from "@/lib/category-images";
 import { resolveNewsAnimationScene, type NewsAnimationScene } from "@/lib/news-animation";
 import { VIDEO_DURATION_SECONDS } from "@/lib/news-config";
 
@@ -65,7 +65,7 @@ function MiniAudioEqualizer({ active }: { active: boolean }) {
   );
 }
 
-function SceneMotion({ sceneKey, isCurrentlyPlaying }: { sceneKey: string; isCurrentlyPlaying: boolean }) {
+export function SceneMotion({ sceneKey, isCurrentlyPlaying }: { sceneKey: string; isCurrentlyPlaying: boolean }) {
   if (sceneKey === "politics") {
     return (
       <div className={`kural-scene-motion kural-scene-politics ${isCurrentlyPlaying ? "is-active" : ""}`} aria-hidden="true">
@@ -255,6 +255,7 @@ export default function NewsImageSection({
     return SCENES.find((item) => item.key === key) || DEFAULT_SCENE;
   }, [animationScene, category, headline, summary, source]);
 
+  const [imageError, setImageError] = useState(false);
   const publishedLabel = useMemo(() => {
     const date = new Date(publishedAt);
     if (Number.isNaN(date.getTime())) return publishedAt;
@@ -389,9 +390,22 @@ export default function NewsImageSection({
           </video>
           <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-black/5" aria-hidden="true" />
         </>
-      ) : (
-        <SceneMotion sceneKey={scene.key} isCurrentlyPlaying={isCurrentlyPlaying} />
-      )}
+      ) : (() => {
+        const articleImage = imageUrl || aiImageUrl || getCategoryFallbackImageUrl(category);
+        const showImage = articleImage && !imageError;
+        return showImage ? (
+          <img
+            src={articleImage}
+            alt=""
+            aria-hidden="true"
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <SceneMotion sceneKey={scene.key} isCurrentlyPlaying={isCurrentlyPlaying} />
+        );
+      })()}
     </button>
   );
 }

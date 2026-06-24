@@ -4,6 +4,7 @@ import { Play, Pause, SkipBack, SkipForward } from "lucide-react";
 import { useAppStore } from "@/store/app-store";
 import { useAudioStore } from "@/store/audio-store";
 import SafeImage from "@/components/safe-image";
+import { getCategoryFallbackImageUrl } from "@/lib/category-images";
 
 export default function NowPlaying() {
   const isNewspaperAudioMode = useAppStore((s) => s.isNewspaperAudioMode);
@@ -31,7 +32,7 @@ export default function NowPlaying() {
       >
           <div className="flex items-center gap-2 pl-1.5 pr-2 py-1.5 rounded-md bg-surface border border-border shadow-md">
           <div className="w-9 h-9 overflow-hidden rounded-sm shrink-0">
-            <SafeImage src={currentItem.imageUrl} aiSrc={currentItem.aiImageUrl} alt="" className="w-full h-full object-cover" />
+            <SafeImage src={currentItem.imageUrl} aiSrc={currentItem.aiImageUrl} fallbackSrc={getCategoryFallbackImageUrl(currentItem.category || "")} alt="" className="w-full h-full object-cover" />
             {isLoading && (
               <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-sm">
                 <div className="w-3 h-3 border-2 border-white/30 border-t-accent rounded-full animate-spin" />

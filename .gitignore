@@ -47,3 +47,4 @@ public/uploads/
 public/generated-scenes/*.webp
 public/generated-scenes/*.png
 dev-server.log
+nul

@@ -4,6 +4,7 @@ import { useAppStore } from "@/store/app-store";
 import { useAudioStore } from "@/store/audio-store";
 import { Play } from "lucide-react";
 import SafeImage from "@/components/safe-image";
+import { getCategoryFallbackImageUrl } from "@/lib/category-images";
 import type { NewsItem } from "@/types";
 import type { QueueItem } from "@/lib/audio-engine";
 import { getArticleContentText, getArticleDisplayText, getArticleHeadlineText, getCategoryDisplayText, type NewsTextLanguage } from "@/lib/news-text";
@@ -56,7 +57,7 @@ export default function RelatedNewsPanel({ currentId, category, language }: { cu
             className="flex items-start gap-2.5 w-full text-left p-2 rounded-sm hover:bg-surface-highlight transition-colors cursor-pointer group"
           >
             <div className="w-12 h-12 rounded-sm overflow-hidden shrink-0">
-              <SafeImage src={n.imageUrl} alt="" className="w-full h-full object-cover" />
+              <SafeImage src={n.imageUrl} aiSrc={n.aiImageUrl} fallbackSrc={getCategoryFallbackImageUrl(n.category)} alt="" className="w-full h-full object-cover" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium leading-snug line-clamp-2 group-hover:text-accent transition-colors">

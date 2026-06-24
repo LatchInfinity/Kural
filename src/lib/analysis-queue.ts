@@ -13,10 +13,6 @@ export async function processAnalysisQueue(): Promise<number> {
     groqConfigured = !!process.env.GROQ_API_KEY;
     if (!groqConfigured) {
       logger.warn("Analysis Queue", "GROQ_API_KEY not set — analysis disabled, using keyword fallback");
-      try {
-        const db = getDbInstance();
-        db.prepare("UPDATE articles SET ai_image_prompt = 'unavailable' WHERE ai_image_prompt IS NULL OR ai_image_prompt = ''").run();
-      } catch {}
       return 0;
     }
   }
@@ -52,11 +48,7 @@ export async function processAnalysisQueue(): Promise<number> {
           scene: result.scene,
         });
       } else {
-        try {
-          const db = getDbInstance();
-          db.prepare("UPDATE articles SET ai_image_prompt = 'unavailable' WHERE id = ?").run(article.id);
-        } catch {}
-        logger.warn("Analysis Queue", `Groq analysis failed for article ${article.id}, marking as unavailable`);
+        logger.warn("Analysis Queue", `Groq analysis failed for article ${article.id}`);
         processed++;
       }
     }

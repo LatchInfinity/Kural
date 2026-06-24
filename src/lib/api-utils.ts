@@ -56,6 +56,13 @@ export function errorStack(error: unknown): string {
   return error instanceof Error ? error.stack || error.message : String(error);
 }
 
+function sanitizeUrl(value: string | null | undefined): string {
+  if (!value) return "";
+  const trimmed = value.trim();
+  if (trimmed === "" || trimmed === "null" || trimmed === "undefined") return "";
+  return trimmed;
+}
+
 export function mapArticleRow(
   row: ArticleDbRow,
   options: { resolveImage?: (row: ArticleDbRow) => string } = {},
@@ -66,7 +73,7 @@ export function mapArticleRow(
   const summary = buildNewsSummary(row.summary || "", content, headline);
   const category = (row.category || "தமிழ்நாடு உள்ளூர்") as NewsItem["category"];
   const retention = row.retention || "recent";
-  const imageUrl = options.resolveImage ? options.resolveImage(row) : row.image_url || "";
+  const imageUrl = options.resolveImage ? options.resolveImage(row) : sanitizeUrl(row.image_url);
   const englishSummary = buildEnglishSummary({ headline, summary, content, category });
   const resolvedVideo = resolveArticleVideo({
     id: row.id,
@@ -94,7 +101,7 @@ export function mapArticleRow(
     sourceUrl: row.source_url || "",
     sourceLogoUrl: row.source_logo_url || "",
     imageUrl,
-    aiImageUrl: row.ai_image_url || "",
+    aiImageUrl: sanitizeUrl(row.ai_image_url),
     aiVideoUrl,
     videoStatus: row.video_status || resolvedVideo.videoStatus,
     videoPrompt: row.video_prompt || resolvedVideo.videoPrompt,

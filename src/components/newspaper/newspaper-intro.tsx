@@ -8,7 +8,8 @@ import { useUserStore } from "@/store/user-store";
 import { getCurrentEdition } from "@/lib/editions";
 import { newsData } from "@/lib/news";
 import DeskEnvironment, { SunMoon, DeskCalendar } from "@/components/newspaper/desk-items";
-import { getCategoryEmoji } from "@/lib/category-images";
+import { SceneMotion } from "@/components/news-image-section";
+import { resolveNewsAnimationScene } from "@/lib/news-animation";
 import type { NewsItem, ReactionType } from "@/types";
 
 const CLOSE_DURATION = 1400;
@@ -128,22 +129,9 @@ const PageCard = memo(function PageCard({ article, isActive, edition, handlePlay
           {article.headline}
         </h3>
 
-        <div className="relative w-full mb-2 overflow-hidden rounded-sm flex-shrink-0 flex flex-col items-center justify-center" style={{ aspectRatio: "16/9", background: "#0F172A" }}>
-          <span className="text-3xl leading-none">{getCategoryEmoji(article.category)}</span>
-          <div className="flex items-end gap-[2px] mt-2">
-            {[0.3, 0.7, 0.2, 0.9, 0.4].map((h, i) => (
-              <div key={i}
-                className="w-[2px] rounded-full animate-eq-bar"
-                style={{
-                  height: `${8 + h * 18}px`,
-                  background: "#60A5FA",
-                  opacity: 0.5,
-                  animationDelay: `${i * 0.12}s`,
-                  animationDuration: "1.4s",
-                }}
-              />
-            ))}
-          </div>
+        <div className="relative w-full mb-2 overflow-hidden rounded-sm flex-shrink-0" style={{ aspectRatio: "16/9", background: "#0F172A" }}>
+          <SceneMotion sceneKey={resolveNewsAnimationScene({ category: article.category, headline: article.headline, summary: article.tamilSummary || article.englishSummary, source: article.source })} isCurrentlyPlaying={isActive} />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/5" />
         </div>
 
         <div className="flex-1 overflow-y-auto min-h-0 scrollbar-thin">
@@ -280,23 +268,10 @@ function CoverPageComponent({ edition, today, newsData, handleOpen }: {
           <p className="text-[7px] mt-1 tracking-[1px]" style={{ color: "#bbb" }}>{today}</p>
         </div>
         <div className="mx-7 mb-3">
-          <div className="relative w-full overflow-hidden flex flex-col items-center justify-center" style={{ aspectRatio: "21/9", background: "#0F172A" }}>
-            <span className="text-4xl leading-none">{getCategoryEmoji(newsData[0].category)}</span>
-            <div className="flex items-end gap-[2px] mt-2">
-              {[0.3, 0.7, 0.2, 0.9, 0.4].map((h, i) => (
-                <div key={i}
-                  className="w-[2px] rounded-full animate-eq-bar"
-                  style={{
-                    height: `${8 + h * 18}px`,
-                    background: "#60A5FA",
-                    opacity: 0.5,
-                    animationDelay: `${i * 0.12}s`,
-                    animationDuration: "1.4s",
-                  }}
-                />
-              ))}
-            </div>
-            <span className="absolute bottom-2 left-3 text-[8px] font-bold text-white px-1.5 py-0.5 rounded-sm" style={{ background: `${edition.accent}cc` }}>
+          <div className="relative w-full overflow-hidden" style={{ aspectRatio: "21/9", background: "#0F172A" }}>
+            <SceneMotion sceneKey={resolveNewsAnimationScene({ category: newsData[0].category, headline: newsData[0].headline, summary: newsData[0].summary, source: newsData[0].source })} isCurrentlyPlaying={false} />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/5" />
+            <span className="absolute bottom-2 left-3 text-[8px] font-bold text-white px-1.5 py-0.5 rounded-sm z-10" style={{ background: `${edition.accent}cc` }}>
               {newsData[0].category}
             </span>
           </div>
@@ -356,22 +331,8 @@ function FoldedNewspaperComponent({ edition, today, newsData, handleFoldedClick,
             </div>
             <div className="h-[1px] mx-5" style={{ background: "linear-gradient(90deg, transparent, rgba(0,0,0,0.08), rgba(0,0,0,0.12), rgba(0,0,0,0.08), transparent)" }} />
             <div className="flex-1 px-5 pt-3 pb-5">
-              <div className="w-full overflow-hidden rounded-sm flex flex-col items-center justify-center" style={{ aspectRatio: "16/9", background: "#0F172A" }}>
-                <span className="text-2xl leading-none">{getCategoryEmoji(newsData[0].category)}</span>
-                <div className="flex items-end gap-[2px] mt-1">
-                  {[0.3, 0.7, 0.2, 0.9, 0.4].map((h, i) => (
-                    <div key={i}
-                      className="w-[2px] rounded-full animate-eq-bar"
-                      style={{
-                        height: `${6 + h * 14}px`,
-                        background: "#60A5FA",
-                        opacity: 0.5,
-                        animationDelay: `${i * 0.12}s`,
-                        animationDuration: "1.4s",
-                      }}
-                    />
-                  ))}
-                </div>
+              <div className="w-full overflow-hidden rounded-sm" style={{ aspectRatio: "16/9", background: "#0F172A" }}>
+                <SceneMotion sceneKey={resolveNewsAnimationScene({ category: newsData[0].category, headline: newsData[0].headline, summary: newsData[0].summary, source: newsData[0].source })} isCurrentlyPlaying={false} />
               </div>
               <p className="text-[9px] font-bold mt-1.5 leading-snug line-clamp-2" style={{ color: "#1a1a1a" }}>
                 {newsData[0].headline}

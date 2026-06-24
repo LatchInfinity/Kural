@@ -321,6 +321,8 @@ export async function syncAllFeeds(): Promise<{
         const finalImageUrl = article.imageUrl || aiImage.url;
         const imageSource = article.imageUrl ? "source" : "ai";
 
+        console.log(`[IMAGE] STORE id=${"(pending)"} title="${article.title.slice(0, 60)}" category=${filterResult.category} image_source=${imageSource} source_url=${article.imageUrl ? article.imageUrl.slice(0, 60) : "none"} ai_url=${aiImage.url.slice(0, 60)}`);
+
         const articleId = generateId();
         const video = resolveArticleVideo({
           id: articleId,
@@ -365,8 +367,9 @@ export async function syncAllFeeds(): Promise<{
         if (inserted) {
           articlesNew++;
           totalNew++;
+          console.log(`[IMAGE] SAVE id=${articleId} title="${article.title.slice(0, 60)}" category=${filterResult.category} status=SUCCESS`);
         } else {
-          console.log("Duplicate Article (insert ignored)", article.title);
+          console.log(`[IMAGE] SAVE id=${articleId} title="${article.title.slice(0, 60)}" category=${filterResult.category} status=DUPLICATE`);
           articlesDuplicate++;
         }
       }
@@ -404,6 +407,12 @@ export async function syncAllFeeds(): Promise<{
     UPDATE sync_logs SET completed_at = datetime('now'), status = 'success',
     articles_found = ?, articles_new = ? WHERE id = ? AND status = 'running'
   `).run(totalFound, totalNew, syncId);
+
+  const sqlBad = `SELECT COUNT(*) as count FROM articles WHERE value IS NULL OR value = '' OR value = 'null' OR value = 'undefined'`;
+  const missingImage = db.prepare(sqlBad.replace('value', 'image_url')).get() as { count: number };
+  const missingAiImage = db.prepare(sqlBad.replace('value', 'ai_image_url')).get() as { count: number };
+  const totalArticles = db.prepare("SELECT COUNT(*) as count FROM articles").get() as { count: number };
+  console.log(`[IMAGE] VERIFY total=${totalArticles.count} bad_image=${missingImage.count} bad_ai_image=${missingAiImage.count}`);
 
   if (totalNew > 0) {
     sseManager.broadcast({
@@ -493,6 +502,8 @@ export async function syncSingleSource(source: RSSSourceConfig): Promise<{
       const finalImageUrl = article.imageUrl || aiImage.url;
       const imageSource = article.imageUrl ? "source" : "ai";
 
+      console.log(`[IMAGE] STORE id=${"(pending)"} title="${article.title.slice(0, 60)}" category=${filterResult.category} image_source=${imageSource} source_url=${article.imageUrl ? article.imageUrl.slice(0, 60) : "none"} ai_url=${aiImage.url.slice(0, 60)}`);
+
       const articleId = generateId();
       const video = resolveArticleVideo({
         id: articleId,
@@ -536,8 +547,9 @@ export async function syncSingleSource(source: RSSSourceConfig): Promise<{
       });
       if (inserted) {
         articlesNew++;
+        console.log(`[IMAGE] SAVE id=${articleId} title="${article.title.slice(0, 60)}" category=${filterResult.category} status=SUCCESS`);
       } else {
-        console.log("Duplicate Article (insert ignored)", article.title);
+        console.log(`[IMAGE] SAVE id=${articleId} title="${article.title.slice(0, 60)}" category=${filterResult.category} status=DUPLICATE`);
         articlesDuplicate++;
       }
     }
