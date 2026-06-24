@@ -1,0 +1,16 @@
+
+> kural@0.1.0 dev
+> next dev --webpack
+
+▲ Next.js 16.2.6 (webpack)
+- Local:         http://localhost:3000
+- Network:       http://172.25.176.1:3000
+- Environments: .env.local
+✓ Ready in 1801ms
+
+○ Compiling / ...
+ GET / 200 in 14.4s (next.js: 12.1s, application-code: 2.3s)
+[DB Migration] Checking schema...
+[DB Migration] Schema is up to date
+ GET /api/news?retention=active&limit=3 200 in 3.7s (next.js: 3.4s, application-code: 286ms)
+[?25h

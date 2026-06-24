@@ -1,0 +1,65 @@
+import type { RSSSourceConfig } from "./types";
+
+export const oneIndiaTamil: RSSSourceConfig = {
+  id: "oneindia-tamil-latest",
+  name: "OneIndia Tamil Latest",
+  nameTa: "ஒன்இந்தியா தமிழ்",
+  feedUrl: "https://tamil.oneindia.com/rss/feeds/tamil-news-fb.xml",
+  websiteUrl: "https://tamil.oneindia.com",
+  logoUrl: "https://tamil.oneindia.com/favicon.ico",
+  category: "general",
+  active: true,
+};
+
+export const oneIndiaTamilFeeds: RSSSourceConfig[] = [
+  {
+    id: "oneindia-tamil-technology",
+    name: "OneIndia Tamil Technology",
+    nameTa: "ஒன்இந்தியா தொழில்நுட்பம்",
+    feedUrl: "https://tamil.oneindia.com/rss/feeds/tamil-technology-fb.xml",
+    websiteUrl: "https://tamil.oneindia.com/technology",
+    logoUrl: "https://tamil.oneindia.com/favicon.ico",
+    category: "technology",
+    active: true,
+  },
+  {
+    id: "oneindia-tamil-weather",
+    name: "OneIndia Tamil Weather",
+    nameTa: "ஒன்இந்தியா வானிலை",
+    feedUrl: "https://tamil.oneindia.com/rss/feeds/tamil-weather-fb.xml",
+    websiteUrl: "https://tamil.oneindia.com/weather",
+    logoUrl: "https://tamil.oneindia.com/favicon.ico",
+    category: "weather",
+    active: true,
+  },
+  {
+    id: "oneindia-tamil-education",
+    name: "OneIndia Tamil Education",
+    nameTa: "ஒன்இந்தியா கல்வி",
+    feedUrl: "https://tamil.oneindia.com/rss/feeds/tamil-education-fb.xml",
+    websiteUrl: "https://tamil.oneindia.com/education",
+    logoUrl: "https://tamil.oneindia.com/favicon.ico",
+    category: "education",
+    active: true,
+  },
+  {
+    id: "oneindia-tamil-health",
+    name: "OneIndia Tamil Health",
+    nameTa: "ஒன்இந்தியா ஆரோக்கியம்",
+    feedUrl: "https://tamil.oneindia.com/rss/feeds/tamil-health-fb.xml",
+    websiteUrl: "https://tamil.oneindia.com/health",
+    logoUrl: "https://tamil.oneindia.com/favicon.ico",
+    category: "health",
+    active: true,
+  },
+  {
+    id: "oneindia-tamil-ai",
+    name: "OneIndia Tamil AI",
+    nameTa: "ஒன்இந்தியா AI",
+    feedUrl: "https://tamil.oneindia.com/rss/feeds/artificial-intelligence-fb.xml",
+    websiteUrl: "https://tamil.oneindia.com/technology",
+    logoUrl: "https://tamil.oneindia.com/favicon.ico",
+    category: "technology",
+    active: true,
+  },
+];
