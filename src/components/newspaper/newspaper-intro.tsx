@@ -10,10 +10,148 @@ import { newsData } from "@/lib/news";
 import DeskEnvironment, { SunMoon, DeskCalendar } from "@/components/newspaper/desk-items";
 import { SceneMotion } from "@/components/news-image-section";
 import { resolveNewsAnimationScene } from "@/lib/news-animation";
+import { getCategoryFallbackImageUrl } from "@/lib/category-images";
 import type { NewsItem, ReactionType } from "@/types";
 
 const CLOSE_DURATION = 1400;
 const OPEN_DURATION = 2000;
+
+function normalizeText(value: string): string {
+  return value.toLowerCase().replace(/[^\w\s\u0B80-\u0BFF]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function textHas(text: string, terms: string[]): boolean {
+  return terms.some((t) => {
+    const n = normalizeText(t);
+    if (!n) return false;
+    if (/^[a-z0-9 ]+$/.test(n)) {
+      return new RegExp(`(^|\\s)${n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}($|\\s)`).test(text);
+    }
+    return text.includes(n);
+  });
+}
+
+const POLITICAL_TERMS = ["assembly", "legislative", "minister", "chief minister", "MLA", "MLC", "சட்டப்பேரவை", "சட்டசபை", "அமைச்சர்", "முதலமைச்சர்", "அரசியல்", "தேர்தல்", "election", "vote", "party", "கட்சி", "ஆளுநர்", "governor"];
+const GOVERNMENT_TERMS = ["government", "scheme", "policy", "budget", "tender", "பட்ஜெட்", "திட்டம்", "ஒப்பந்தம்", "அரசு அறிவிப்பு", "அரசு திட்டம்", "ரூபாய்", "crore", "crores", "lakh", "lakhs", "மானியம்", "subsidy", "welfare"];
+const CRIME_TERMS = ["crime", "arrest", "murder", "theft", "court", "police", "FIR", "குற்றம்", "கைது", "கொலை", "திருட்டு", "நீதிமன்ற", "வழக்கு", "காவல் நிலையம்", "சிறை", "jail", "prison", "fraud", "scam", "cheating", "cyber", "மோசடி", "சைபர்"];
+const ACCIDENT_TERMS = ["accident", "crash", "collision", "fire", "explosion", "gas leak", "ammonia", "factory accident", "injured", "hospitalized", "விபத்து", "மோதல்", "தீ விபத்து", "வெடிப்பு", "வாயு கசிவு", "காயம்", "மருத்துவமனை"];
+const TRANSPORT_TERMS = ["train", "metro", "bus", "railway", "airport", "road", "traffic", "transport", "flight", "போக்குவரத்து", "ரயில்", "மெட்ரோ", "பேருந்து", "விமானம்", "சாலை", "விமான நிலையம்", "track", "platform", "சுங்கச்சாவடி"];
+const SPORTS_TERMS = ["cricket", "football", "kabaddi", "match", "tournament", "player", "score", " Stadium", "IPL", "விளையாட்டு", "கிரிக்கெட்", "கபடி", "போட்டி", "வீரர்", "சாம்பியன்", "Olympic", "Olympics", "தகரம்"];
+const EDUCATION_TERMS = ["school", "college", "university", "exam", "student", "teacher", "results", "admission", "graduation", "கல்வி", "பள்ளி", "கல்லூரி", "பல்கலைக்கழகம்", "தேர்வு", "மாணவர்", "ஆசிரியர்", "மதிப்பெண்", "தரவரிசை"];
+const TECHNOLOGY_TERMS = ["technology", "tech", "AI", "robot", "startup", "software", "digital", "cyber", "app", "இணைய", "தொழில்நுட்பம்", "செயற்கை", "அறிவியல்", "டிஜிட்டல்", "ஸ்டார்ட்அப்", "மென்பொருள்", "ஹேக்", "hack"];
+const BUSINESS_TERMS = ["business", "market", "economy", "stock", "share", "investment", "trade", "GST", "price", "gold", "oil", "petrol", "diesel", "inflation", "வணிகம்", "சந்தை", "முதலீடு", "தொழில்", "விலை", "தங்கம்", "பங்கு", "சரக்கு", "ஏற்றுமதி"];
+const WEATHER_TERMS = ["rain", "heavy rain", "storm", "cyclone", "flood", "weather", "cloud", "thunderstorm", "heat wave", "மழை", "வானிலை", "புயல்", "வெள்ளம்", "மேகம்", "இடி மின்னல்", "வெப்ப அலை", "சூறாவளி"];
+const AGRICULTURE_TERMS = ["farm", "crop", "harvest", "paddy", "rice", "agriculture", "farmer", "irrigation", "field", "வேளாண்மை", "விவசாயி", "விவசாயம்", "நெல்", "பயிர்", "அறுவடை", "குளிர்சாதனம்"];
+
+interface VideoRule {
+  video: string;
+  terms: string[];
+}
+
+const CONTENT_VIDEO_RULES: VideoRule[] = [
+  { video: "/generated-videos/politics/assembly.mp4", terms: POLITICAL_TERMS },
+  { video: "/generated-videos/politics/assembly.mp4", terms: GOVERNMENT_TERMS },
+  { video: "/generated-videos/crime/police-chase.mp4", terms: ["chase", "pursuit", "துரத்தல்", "விரட்ட"] },
+  { video: "/generated-videos/crime/crime.mp4", terms: CRIME_TERMS },
+  { video: "/generated-videos/accident/accident.mp4", terms: ACCIDENT_TERMS },
+  { video: "/generated-videos/transport/transport.mp4", terms: TRANSPORT_TERMS },
+  { video: "/generated-videos/sports/sports.mp4", terms: SPORTS_TERMS },
+  { video: "/generated-videos/education/education.mp4", terms: EDUCATION_TERMS },
+  { video: "/generated-videos/technology/technology.mp4", terms: TECHNOLOGY_TERMS },
+  { video: "/generated-videos/business/business.mp4", terms: BUSINESS_TERMS },
+  { video: "/generated-videos/weather/weather.mp4", terms: WEATHER_TERMS },
+  { video: "/generated-videos/district/district-news.mp4", terms: AGRICULTURE_TERMS },
+];
+
+function resolveContentVideo(headline: string, summary: string, category: string): string {
+  const haystack = normalizeText(`${headline} ${summary} ${category}`);
+  for (const rule of CONTENT_VIDEO_RULES) {
+    if (textHas(haystack, rule.terms)) return rule.video;
+  }
+  return "/generated-videos/district/district-news.mp4";
+}
+
+const NewspaperThumbnail = memo(function NewspaperThumbnail({
+  article,
+  isActive,
+  aspectRatio = "16/9",
+  showCategoryLabel = false,
+  editionAccent,
+}: {
+  article: NewsItem;
+  isActive: boolean;
+  aspectRatio?: string;
+  showCategoryLabel?: boolean;
+  editionAccent?: string;
+}) {
+  const [imgError, setImgError] = useState(false);
+  const [canPlay, setCanPlay] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const sceneKey = resolveNewsAnimationScene({
+    category: article.category,
+    headline: article.headline,
+    summary: article.tamilSummary || article.englishSummary,
+    source: article.source,
+  });
+  const videoUrl = article.aiVideoUrl || resolveContentVideo(article.headline, article.tamilSummary || article.englishSummary, article.category);
+  const posterUrl = article.aiImageUrl || article.imageUrl || getCategoryFallbackImageUrl(article.category);
+  const webmUrl = videoUrl.replace(/\.mp4($|\?)/, ".webm$1");
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (canPlay && isActive) {
+      video.play().catch(() => undefined);
+    } else {
+      video.pause();
+    }
+  }, [canPlay, isActive]);
+
+  return (
+    <div
+      className="relative w-full overflow-hidden rounded-sm"
+      style={{ aspectRatio, background: "#0F172A" }}
+    >
+      {posterUrl && !imgError && !canPlay && (
+        <img
+          src={posterUrl}
+          alt=""
+          aria-hidden="true"
+          loading="lazy"
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${canPlay ? "opacity-0" : "opacity-100"}`}
+          onError={() => setImgError(true)}
+        />
+      )}
+      {!posterUrl || imgError ? (
+        <SceneMotion sceneKey={sceneKey} isCurrentlyPlaying={isActive} />
+      ) : null}
+      <video
+        ref={videoRef}
+        muted
+        playsInline
+        loop
+        preload="metadata"
+        aria-hidden="true"
+        onCanPlay={() => setCanPlay(true)}
+        onLoadedData={() => setCanPlay(true)}
+        onError={() => setCanPlay(false)}
+        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${canPlay ? "opacity-100" : "opacity-0"}`}
+      >
+        {webmUrl !== videoUrl ? <source src={webmUrl} type="video/webm" /> : null}
+        <source src={videoUrl} type="video/mp4" />
+      </video>
+      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/10" />
+      {showCategoryLabel && editionAccent && (
+        <span
+          className="absolute bottom-2 left-3 text-[8px] font-bold text-white px-1.5 py-0.5 rounded-sm z-10"
+          style={{ background: `${editionAccent}cc` }}
+        >
+          {article.category}
+        </span>
+      )}
+    </div>
+  );
+});
 
 const reactionIcons: Record<ReactionType, React.ReactNode> = {
   love: <Heart size={11} />,
@@ -129,9 +267,8 @@ const PageCard = memo(function PageCard({ article, isActive, edition, handlePlay
           {article.headline}
         </h3>
 
-        <div className="relative w-full mb-2 overflow-hidden rounded-sm flex-shrink-0" style={{ aspectRatio: "16/9", background: "#0F172A" }}>
-          <SceneMotion sceneKey={resolveNewsAnimationScene({ category: article.category, headline: article.headline, summary: article.tamilSummary || article.englishSummary, source: article.source })} isCurrentlyPlaying={isActive} />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/5" />
+        <div className="relative w-full mb-2 overflow-hidden rounded-sm flex-shrink-0">
+          <NewspaperThumbnail article={article} isActive={isActive} />
         </div>
 
         <div className="flex-1 overflow-y-auto min-h-0 scrollbar-thin">
@@ -268,12 +405,8 @@ function CoverPageComponent({ edition, today, newsData, handleOpen }: {
           <p className="text-[7px] mt-1 tracking-[1px]" style={{ color: "#bbb" }}>{today}</p>
         </div>
         <div className="mx-7 mb-3">
-          <div className="relative w-full overflow-hidden" style={{ aspectRatio: "21/9", background: "#0F172A" }}>
-            <SceneMotion sceneKey={resolveNewsAnimationScene({ category: newsData[0].category, headline: newsData[0].headline, summary: newsData[0].summary, source: newsData[0].source })} isCurrentlyPlaying={false} />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/5" />
-            <span className="absolute bottom-2 left-3 text-[8px] font-bold text-white px-1.5 py-0.5 rounded-sm z-10" style={{ background: `${edition.accent}cc` }}>
-              {newsData[0].category}
-            </span>
+          <div className="relative w-full overflow-hidden">
+            <NewspaperThumbnail article={newsData[0]} isActive={false} aspectRatio="21/9" showCategoryLabel editionAccent={edition.accent} />
           </div>
           <h2 className="text-sm font-bold mt-2 leading-snug line-clamp-2" style={{ color: "#1a1a1a" }}>{newsData[0].headline}</h2>
           <p className="text-[9px] mt-1 leading-relaxed line-clamp-2" style={{ color: "#555" }}>{newsData[0].summary}</p>
@@ -331,8 +464,8 @@ function FoldedNewspaperComponent({ edition, today, newsData, handleFoldedClick,
             </div>
             <div className="h-[1px] mx-5" style={{ background: "linear-gradient(90deg, transparent, rgba(0,0,0,0.08), rgba(0,0,0,0.12), rgba(0,0,0,0.08), transparent)" }} />
             <div className="flex-1 px-5 pt-3 pb-5">
-              <div className="w-full overflow-hidden rounded-sm" style={{ aspectRatio: "16/9", background: "#0F172A" }}>
-                <SceneMotion sceneKey={resolveNewsAnimationScene({ category: newsData[0].category, headline: newsData[0].headline, summary: newsData[0].summary, source: newsData[0].source })} isCurrentlyPlaying={false} />
+              <div className="w-full overflow-hidden rounded-sm">
+                <NewspaperThumbnail article={newsData[0]} isActive={false} />
               </div>
               <p className="text-[9px] font-bold mt-1.5 leading-snug line-clamp-2" style={{ color: "#1a1a1a" }}>
                 {newsData[0].headline}
@@ -764,7 +897,7 @@ export default function NewspaperView() {
       )}
 
       {isOpen && (
-        <div className="z-20 flex-1 flex flex-col items-center justify-center px-6">
+        <div className="z-20 flex-1 flex flex-col items-center justify-center px-6 pb-24">
           <motion.div
             initial={{ scale: 0.95, opacity: 0, y: 12 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
