@@ -5,16 +5,13 @@ import { type ArticleDbRow, errorStack, mapArticleRow } from "@/lib/api-utils";
 import { balanceSources } from "@/lib/rss/balancer";
 import { MAX_ARTICLES_HOME, NEWS_RETENTION_MS, TAMIL_NADU_NEWS_CATEGORIES } from "@/lib/news-config";
 import { isDisplayableNewsItem } from "@/lib/news-policy";
-import { ensureFreshNewsAvailable } from "@/lib/news-bootstrap";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
 
 export async function GET(request: NextRequest) {
   try {
     const db = getDbInstance();
-    await ensureFreshNewsAvailable();
     const url = new URL(request.url);
     const limit = Math.min(MAX_ARTICLES_HOME, parseInt(url.searchParams.get("limit") || "10", 10));
     const since = url.searchParams.get("since") || "";
