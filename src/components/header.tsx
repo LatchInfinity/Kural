@@ -27,7 +27,7 @@ export default function Header() {
   const showStreak = streaks.listeningStreak > 0;
 
   return (
-    <header className="notranslate" translate="no">
+    <header className={`notranslate ${activeNav === "newspaper-view" ? "" : "sticky top-0 z-[60]"}`} translate="no">
       <div className="flex items-center justify-between gap-3 px-4 h-14 border-b border-border bg-background">
         <button
           onClick={() => { setActiveNav("home"); setCategoryFilter(""); }}

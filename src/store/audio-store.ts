@@ -206,10 +206,13 @@ export const useAudioStore = create<AudioStoreState & AudioStoreActions>()((set,
   }),
 
   finishTrack: () => set((state) => ({
-    isPlaying: false,
-    isLoading: false,
-    currentTime: state.duration,
-    progress: state.duration > 0 ? 100 : state.progress,
+    ...initialState,
+    language: state.language,
+    volume: state.volume,
+    speed: state.speed,
+    voice: state.voice,
+    voiceGender: state.voiceGender,
+    replayNonce: state.replayNonce,
   })),
 
   next: () => {

@@ -12,9 +12,13 @@ export interface NewsTextInput {
 }
 
 const TAMIL_RE = /[\u0B80-\u0BFF]/;
-const SPEECH_TEXT_LIMITS: Record<NewsTextLanguage, number> = {
-  ta: 560,
-  en: 680,
+const AUDIO_WORD_LIMITS = {
+  min: 60,
+  max: 90,
+};
+const AUDIO_ENDINGS: Record<NewsTextLanguage, string> = {
+  ta: "மேலும் விவரங்களுக்கு கீழே உள்ள இணைப்பை கிளிக் செய்யவும்.",
+  en: "For more details, click the link below.",
 };
 
 const BOILERPLATE_MARKERS: RegExp[] = [
@@ -219,6 +223,102 @@ function normalizeWhitespace(value: string): string {
     .replace(/\s+/g, " ")
     .replace(/\s+([.,;:!?])/g, "$1")
     .trim();
+}
+
+function stripAudioEnding(value: string): string {
+  return normalizeWhitespace(value)
+    .replace(new RegExp(`${AUDIO_ENDINGS.ta.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "u"), "")
+    .replace(new RegExp(`${AUDIO_ENDINGS.en.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"), "")
+    .trim();
+}
+
+function removeNarrationPreamble(value: string): string {
+  return normalizeWhitespace(value)
+    .replace(/^(?:வணக்கம்|இப்போது|இதோ|இந்த செய்தி|செய்தி வாசிப்பு|குரல் செய்தி)[\s,.:;!।-]+/iu, "")
+    .replace(/^(?:here is|now|this is|in this bulletin|this bulletin|audio version|news update)[\s,.:;!-]+/i, "")
+    .trim();
+}
+
+function splitWords(value: string): string[] {
+  return normalizeWhitespace(value).split(/\s+/).filter(Boolean);
+}
+
+function countWords(value: string): number {
+  return splitWords(value).length;
+}
+
+function ensureSentenceEnd(value: string): string {
+  const text = normalizeWhitespace(value).replace(/[“”"‘’]/g, "");
+  if (!text) return "";
+  return /[.!?।]$/.test(text) ? text : `${text}.`;
+}
+
+function normalizeAudioSentenceKey(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^\wஅ-௯]/g, "")
+    .trim();
+}
+
+function audioSentences(value: string): string[] {
+  const cleaned = removeNarrationPreamble(stripAudioEnding(cleanNewsText(value, { maxLength: 1600 })))
+    .replace(/[“”"‘’]/g, "")
+    .replace(/\.{3,}/g, ".");
+  return Array.from(cleaned.matchAll(/[^.!?।]+[.!?।]?/g))
+    .map((match) => ensureSentenceEnd(match[0]))
+    .filter((sentence) => sentence.length > 0 && !isLikelyBoilerplateText(sentence));
+}
+
+function trimToWordLimit(value: string, maxWords: number): string {
+  const words = splitWords(value);
+  if (words.length <= maxWords) return normalizeWhitespace(value);
+
+  const clipped = words.slice(0, maxWords).join(" ");
+  const boundary = Math.max(
+    clipped.lastIndexOf("."),
+    clipped.lastIndexOf("!"),
+    clipped.lastIndexOf("?"),
+    clipped.lastIndexOf("।"),
+  );
+
+  if (boundary > clipped.length * 0.45) {
+    return ensureSentenceEnd(clipped.slice(0, boundary + 1));
+  }
+
+  return ensureSentenceEnd(clipped.replace(/[.,;:!?।-]+$/u, ""));
+}
+
+function selectAudioBody(value: string, language: NewsTextLanguage): string {
+  const endingWords = countWords(AUDIO_ENDINGS[language]);
+  const maxBodyWords = Math.max(20, AUDIO_WORD_LIMITS.max - endingWords);
+  const minBodyWords = Math.max(20, AUDIO_WORD_LIMITS.min - endingWords);
+  const sentences = audioSentences(value);
+  const selected: string[] = [];
+  const seen = new Set<string>();
+
+  for (const sentence of sentences) {
+    const key = normalizeAudioSentenceKey(sentence);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+
+    const candidate = [...selected, sentence].join(" ");
+    if (countWords(candidate) > maxBodyWords) {
+      if (selected.length === 0) selected.push(trimToWordLimit(sentence, maxBodyWords));
+      break;
+    }
+
+    selected.push(sentence);
+    if (countWords(selected.join(" ")) >= minBodyWords) break;
+  }
+
+  const body = selected.join(" ") || removeNarrationPreamble(stripAudioEnding(cleanNewsText(value, { maxLength: 1200 })));
+  return trimToWordLimit(body, maxBodyWords);
+}
+
+export function buildAudioBulletinFromText(value: string | null | undefined, language: NewsTextLanguage): string {
+  const body = selectAudioBody(value || "", language);
+  const ending = AUDIO_ENDINGS[language];
+  return normalizeWhitespace([body, ending].filter(Boolean).join(" "));
 }
 
 function firstBoilerplateIndex(text: string): number {
@@ -459,25 +559,6 @@ function firstSentence(value: string, maxLength: number): string {
   return truncateAtBoundary(sentence, maxLength);
 }
 
-function completeSpeechBrief(value: string, maxLength: number): string {
-  const text = cleanNewsText(value, { maxLength: maxLength * 3 });
-  if (text.length <= maxLength) return text;
-
-  const sentences = Array.from(text.matchAll(/[^.!?।]+[.!?।]?/g))
-    .map((match) => normalizeWhitespace(match[0]))
-    .filter((sentence) => sentence.length > 0);
-
-  let brief = "";
-  for (const sentence of sentences) {
-    const candidate = brief ? `${brief} ${sentence}` : sentence;
-    if (candidate.length > maxLength) break;
-    brief = candidate;
-  }
-
-  if (brief.length >= 90) return brief;
-  return truncateAtBoundary(text, maxLength);
-}
-
 export function getArticleHeadlineText(item: NewsTextInput, language: NewsTextLanguage, maxLength = 180): string {
   const fallbackHeadline = cleanNewsTitle(item.headline || item.title || "");
   if (language === "ta") return fallbackHeadline;
@@ -505,23 +586,14 @@ export function getArticleContentText(item: NewsTextInput, language: NewsTextLan
 }
 
 export function getArticleSpeechText(item: NewsTextInput, language: NewsTextLanguage): string {
-  const maxLength = SPEECH_TEXT_LIMITS[language];
   const headline = getArticleHeadlineText(item, language, 150);
   const sourceText = language === "en"
     ? buildEnglishSummary(item)
     : buildNewsSummary(item.summary || item.tamilSummary, item.content, item.headline || item.title || "");
-  let articleText = completeSpeechBrief(sourceText, maxLength);
+  const sourceContent = language === "ta" ? item.content : "";
 
-  if (headline && articleText.toLowerCase().startsWith(headline.toLowerCase())) {
-    articleText = articleText.slice(headline.length).replace(/^[\s.।:;-]+/, "");
-  }
-
-  if (articleText.length < 90 && item.content) {
-    articleText = completeSpeechBrief(item.content, maxLength);
-    if (headline && articleText.toLowerCase().startsWith(headline.toLowerCase())) {
-      articleText = articleText.slice(headline.length).replace(/^[\s.।:;-]+/, "");
-    }
-  }
-
-  return completeSpeechBrief(articleText || headline, maxLength);
+  return buildAudioBulletinFromText(
+    [headline, sourceText, sourceContent].filter(Boolean).join(". "),
+    language,
+  );
 }

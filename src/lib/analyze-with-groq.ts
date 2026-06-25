@@ -1,6 +1,7 @@
 import { getDbInstance } from "@/lib/db";
 import { logger } from "@/lib/logger";
 import { isValidScene } from "@/lib/scenes";
+import { buildAudioBulletinFromText } from "@/lib/news-text";
 
 export interface ArticleAnalysis {
   category: string;
@@ -169,20 +170,25 @@ Rules:
 
 const TTS_NARRATION_PROMPT = `நீங்கள் தொழில்முறை தமிழ் செய்தி வாசிப்பாளர்.
 
-கொடுக்கப்பட்ட செய்தியிலிருந்து முழுமையான தமிழ் ஒலி வாசிப்பு உரையை மட்டும் உருவாக்கவும்.
+கொடுக்கப்பட்ட செய்தியிலிருந்து குறுகிய தமிழ் ஒலி செய்தி குறிப்பை மட்டும் உருவாக்கவும்.
 
 கட்டாய விதிகள்:
-- கட்டுரையின் தொடக்கம், நடுப்பகுதி, இறுதி தகவல் ஆகியவை காக்கப்பட வேண்டும்.
-- 95 முதல் 100 தமிழ் சொற்கள் மட்டும் இருக்க வேண்டும்.
-- 40 முதல் 45 விநாடி பேச்சு நீளத்திற்கு ஏற்றதாக இருக்க வேண்டும்.
+- முழு கட்டுரையை வாசிக்க வேண்டாம்.
+- 60 முதல் 90 தமிழ் சொற்கள் மட்டும் இருக்க வேண்டும்.
+- 30 முதல் 45 விநாடி பேச்சு நீளத்திற்கு ஏற்றதாக இருக்க வேண்டும்.
+- என்ன நடந்தது, எங்கு நடந்தது, யார் தொடர்புடையவர், ஏன் முக்கியம் என்பதைக் கூற வேண்டும்.
+- முக்கிய நிகழ்வு, இடம், முக்கிய தகவல்கள், விளைவு அல்லது தாக்கம் மட்டும் இருக்க வேண்டும்.
+- நீண்ட பின்னணி வரலாறு வேண்டாம்.
+- மேற்கோள்கள் வேண்டாம்.
+- தேவையற்ற புள்ளிவிவரங்கள் வேண்டாம்.
 - இயல்பான, தொழில்முறை செய்தி வாசிப்பு நடை.
 - வணக்கம் வேண்டாம்.
 - அறிமுகம் வேண்டாம்.
 - "இப்போது", "இதோ", "இந்த செய்தி" போன்ற அறிமுக தொடக்கங்கள் வேண்டாம்.
-- தனி முடிவு உரை, முடிவு வாழ்த்து, கருத்துரை வேண்டாம்.
 - நிரப்பு சொற்கள் வேண்டாம்.
 - ஒரே வாக்கியம் மீண்டும் வரக்கூடாது.
 - பாதியில் நிற்கும் வாக்கியம் இருக்கக்கூடாது.
+- கடைசி வாக்கியம் இதேபோல் இருக்க வேண்டும்: "மேலும் விவரங்களுக்கு கீழே உள்ள இணைப்பை கிளிக் செய்யவும்."
 - வெளியீடு முழுவதும் தமிழ் செய்தி வாசிப்பு உரை மட்டுமே.
 - வேறு விளக்கம், தலைப்பு, குறிப்பு, Markdown எதுவும் வேண்டாம்.`;
 
@@ -318,7 +324,7 @@ function normalizeNarration(value: string): string {
     .replace(/```/g, "")
     .replace(/^\s*["“]|["”]\s*$/g, "")
     .replace(/^(?:வணக்கம்|இப்போது|இதோ|இந்த செய்தி|செய்தி வாசிப்பு|குரல் செய்தி)[\s,.:;!।-]+/iu, "")
-    .replace(/(?:இதுவே இந்த செய்தியின் முக்கிய அம்சம்|மேலும் விவரங்களுக்கு தொடர்ந்து இணைந்திருங்கள்|இத்துடன் செய்தி முடிகிறது|நன்றி)\.?$/iu, "")
+    .replace(/(?:இதுவே இந்த செய்தியின் முக்கிய அம்சம்|மேலும் விவரங்களுக்கு தொடர்ந்து இணைந்திருங்கள்|மேலும் விவரங்களுக்கு கீழே உள்ள இணைப்பை கிளிக் செய்யவும்|இத்துடன் செய்தி முடிகிறது|நன்றி)\.?$/iu, "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -332,10 +338,6 @@ function sentenceParts(value: string): string[] {
 
 function wordCount(value: string): number {
   return normalizeNarration(value).split(/\s+/).filter(Boolean).length;
-}
-
-function words(value: string): string[] {
-  return normalizeNarration(value).split(/\s+/).filter(Boolean);
 }
 
 function removeRepeatedSentences(value: string): string {
@@ -352,64 +354,15 @@ function removeRepeatedSentences(value: string): string {
   return unique.length > 0 ? unique.join(" ") : normalizeNarration(value);
 }
 
-function wordExcerpt(value: string, minWords = 95, maxWords = 100): string {
-  const allWords = words(removeRepeatedSentences(value));
-  if (allWords.length <= maxWords) return allWords.join(" ");
-
-  const target = Math.min(maxWords, Math.max(minWords, 98));
-  const startCount = 36;
-  const middleCount = 30;
-  const endCount = target - startCount - middleCount;
-  const middleStart = Math.max(startCount, Math.floor((allWords.length - middleCount) / 2));
-  const endStart = Math.max(middleStart + middleCount, allWords.length - endCount);
-
-  if (middleStart + middleCount >= endStart) {
-    return allWords.slice(0, maxWords).join(" ");
-  }
-
-  return [
-    ...allWords.slice(0, startCount),
-    ...allWords.slice(middleStart, middleStart + middleCount),
-    ...allWords.slice(endStart),
-  ].slice(0, maxWords).join(" ");
-}
-
 function boundedNarration(value: string, fallback = ""): string {
   const deduped = removeRepeatedSentences(normalizeNarration(value));
-  const count = wordCount(deduped);
-  if (count >= 95 && count <= 100) return deduped;
-  if (count < 95 && fallback) {
-    const fallbackNarration = wordExcerpt(fallback);
-    const fallbackCount = wordCount(fallbackNarration);
-    if (fallbackCount >= 95 && fallbackCount <= 100) return fallbackNarration;
-  }
-  if (count <= 100) return deduped;
-
-  const selected: string[] = [];
-  for (const sentence of sentenceParts(deduped)) {
-    const candidate = [...selected, sentence].join(" ");
-    if (wordCount(candidate) > 100) break;
-    selected.push(sentence);
-  }
-
-  const trimmed = selected.length > 0 ? selected.join(" ") : wordExcerpt(deduped);
-  return wordCount(trimmed) >= 95 ? trimmed : wordExcerpt(deduped);
+  const source = wordCount(deduped) < 60 && fallback ? `${deduped} ${fallback}` : deduped;
+  return buildAudioBulletinFromText(source || fallback, "ta");
 }
 
 function fallbackTamilNarration(input: TtsNarrationInput): string {
   const text = normalizeNarration([input.title, input.summary, input.content].filter(Boolean).join(". "));
-  const sentences = sentenceParts(removeRepeatedSentences(text));
-  const selected: string[] = [];
-
-  for (const sentence of sentences) {
-    const candidate = [...selected, sentence].join(" ");
-    if (wordCount(candidate) > 100) break;
-    selected.push(sentence);
-    if (wordCount(candidate) >= 95) break;
-  }
-
-  const narration = selected.length > 0 ? selected.join(" ") : text;
-  return boundedNarration(narration || input.title, text);
+  return buildAudioBulletinFromText(text || input.title, "ta");
 }
 
 export async function generateTamilTtsNarration(input: TtsNarrationInput): Promise<string> {

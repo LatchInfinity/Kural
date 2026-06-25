@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import path from "path";
 import { promises as fs } from "fs";
+import { buildAudioBulletinFromText } from "@/lib/news-text";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -488,10 +489,12 @@ function sarvamVoiceName(body: TtsBody): string {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({})) as TtsBody;
-    const text = sanitizeText(normalizeSpeechText(body.text || "", body.language || "ta"));
-    if (!text) {
+    const language = body.language || "ta";
+    const rawText = sanitizeText(body.text || "");
+    if (!rawText) {
       return NextResponse.json({ error: "Text is required" }, { status: 400 });
     }
+    const text = sanitizeText(normalizeSpeechText(buildAudioBulletinFromText(rawText, language), language));
 
     const cacheKey = ttsCacheKey(text, body);
     const cached = await readCachedAudio(cacheKey);

@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Pause, Play, RotateCcw } from "lucide-react";
+import { Pause, Play, SkipBack, SkipForward, X } from "lucide-react";
 import SafeImage from "@/components/safe-image";
 import { useAudioStore } from "@/store/audio-store";
 
@@ -24,7 +24,9 @@ export default function NewspaperMiniPlayer() {
   const duration = useAudioStore((s) => s.duration);
   const progress = useAudioStore((s) => s.progress);
   const toggle = useAudioStore((s) => s.toggle);
-  const replay = useAudioStore((s) => s.replay);
+  const prev = useAudioStore((s) => s.prev);
+  const next = useAudioStore((s) => s.next);
+  const reset = useAudioStore((s) => s.reset);
   const setPopupOpen = useAudioStore((s) => s.setPopupOpen);
 
   const openPopup = useCallback(() => setPopupOpen(true), [setPopupOpen]);
@@ -75,12 +77,12 @@ export default function NewspaperMiniPlayer() {
               type="button"
               onClick={(event) => {
                 event.stopPropagation();
-                replay();
+                prev();
               }}
               className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/5 text-white/75"
-              aria-label="Replay audio"
+              aria-label="Previous article"
             >
-              <RotateCcw size={16} />
+              <SkipBack size={16} />
             </button>
             <button
               type="button"
@@ -98,6 +100,28 @@ export default function NewspaperMiniPlayer() {
               ) : (
                 <Play size={20} fill="currentColor" />
               )}
+            </button>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                next();
+              }}
+              className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/5 text-white/75"
+              aria-label="Next article"
+            >
+              <SkipForward size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                reset();
+              }}
+              className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/5 text-white/75"
+              aria-label="Close audio player"
+            >
+              <X size={16} />
             </button>
           </span>
         </motion.div>

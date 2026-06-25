@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft, Bookmark, BookmarkCheck, Clock, ExternalLink, Flame,
-  Heart, Languages, Maximize2, Pause, Play, RotateCcw, Share2,
+  Heart, Languages, Pause, Play, RotateCcw, Share2,
   SkipBack, SkipForward, Star, ThumbsUp, X,
 } from "lucide-react";
 import SafeImage from "@/components/safe-image";
@@ -66,7 +66,6 @@ export default function AudioPlayerPopup() {
   const track = useAudioStore((s) => s.currentTrack);
   const title = useAudioStore((s) => s.title);
   const thumbnail = useAudioStore((s) => s.thumbnail);
-  const narration = useAudioStore((s) => s.narration);
   const articleText = track?.articleText || "";
   const isPlaying = useAudioStore((s) => s.isPlaying);
   const isLoading = useAudioStore((s) => s.isLoading);
@@ -99,7 +98,6 @@ export default function AudioPlayerPopup() {
   const updateDailyTask = useUserStore((s) => s.updateDailyTaskProgress);
   const currentUser = useUserStore((s) => s.currentUser);
 
-  const [playerHidden, setPlayerHidden] = useState(false);
   const [articleExpanded, setArticleExpanded] = useState(false);
 
   const articleId = track?.id || "";
@@ -113,7 +111,6 @@ export default function AudioPlayerPopup() {
 
   const close = useCallback(() => {
     setPopupOpen(false);
-    setPlayerHidden(false);
     setArticleExpanded(false);
   }, [setPopupOpen]);
 
@@ -225,12 +222,12 @@ export default function AudioPlayerPopup() {
   const sourceUrlDisplay = track.sourceUrl || "";
 
   const playerControls = (
-    <div className="flex items-center justify-center gap-2">
+    <div className="flex items-center justify-center gap-3">
       <button
         type="button"
         onClick={prev}
         disabled={currentIndex <= 0}
-        className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/5 text-white disabled:opacity-30"
+        className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/5 text-white/75 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-30"
         aria-label="Previous article"
       >
         <SkipBack size={16} />
@@ -238,7 +235,7 @@ export default function AudioPlayerPopup() {
       <button
         type="button"
         onClick={replay}
-        className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/5 text-white"
+        className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/5 text-white/75 transition-colors hover:bg-white/10 hover:text-white"
         aria-label="Replay audio"
       >
         <RotateCcw size={16} />
@@ -246,7 +243,7 @@ export default function AudioPlayerPopup() {
       <button
         type="button"
         onClick={toggle}
-        className="grid h-12 w-12 place-items-center rounded-full bg-teal-400 text-slate-950 shadow-lg shadow-teal-500/25"
+        className="grid h-14 w-14 place-items-center rounded-full bg-teal-400 text-slate-950 shadow-xl shadow-teal-500/25 transition-transform hover:scale-105"
         aria-label={isPlaying ? "Pause audio" : "Play audio"}
       >
         {isPlaying ? <Pause size={22} fill="currentColor" /> : <Play size={22} fill="currentColor" />}
@@ -255,7 +252,7 @@ export default function AudioPlayerPopup() {
         type="button"
         onClick={next}
         disabled={currentIndex >= queue.length - 1}
-        className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/5 text-white disabled:opacity-30"
+        className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/5 text-white/75 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-30"
         aria-label="Next article"
       >
         <SkipForward size={16} />
@@ -411,8 +408,22 @@ export default function AudioPlayerPopup() {
                       </div>
                     )}
 
-                    {!playerHidden && (
-                      <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+                    <div className="rounded-2xl border border-teal-300/15 bg-gradient-to-br from-slate-900/95 via-slate-900/85 to-teal-950/35 p-4 shadow-2xl shadow-black/20">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-teal-200/55">Now playing</p>
+                          <p className="mt-0.5 truncate text-sm font-semibold text-white/90">{title}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={close}
+                          className="shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/65 transition-colors hover:bg-white/10 hover:text-white"
+                        >
+                          Hide Player
+                        </button>
+                      </div>
+
+                      <div className="rounded-xl border border-white/10 bg-black/20 p-3">
                         <input
                           type="range"
                           min={0}
@@ -423,61 +434,47 @@ export default function AudioPlayerPopup() {
                           className="w-full accent-teal-400"
                           aria-label="Seek audio"
                         />
-                        <div className="mt-1 flex items-center justify-between text-xs tabular-nums text-white/60">
+                        <div className="mt-2 flex items-center justify-between text-xs tabular-nums text-white/55">
                           <span>{formatTime(currentTime)}</span>
                           <span>{formatTime(duration)}</span>
                         </div>
-                        <div className="mt-1 h-1 overflow-hidden rounded-full bg-white/10">
+                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
                           <div className="h-full rounded-full bg-teal-400" style={{ width: `${progress}%` }} />
                         </div>
+                      </div>
 
-                        <div className="mt-3">{playerControls}</div>
+                      <div className="mt-4">{playerControls}</div>
 
-                        <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs">
-                          <button
-                            type="button"
-                            onClick={() => setLanguage(language === "ta" ? "en" : "ta")}
-                            className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-white/80"
-                          >
-                            <Languages size={13} />
-                            {language === "ta" ? "தமிழ்" : "English"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const index = SPEEDS.indexOf(speed);
-                              setSpeed(SPEEDS[(index + 1) % SPEEDS.length]);
-                            }}
-                            className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-white/80"
-                          >
-                            {speed.toFixed(2).replace(/\.00$/, "")}x
-                          </button>
-                          {providerLabel && (
-                            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-white/55">
-                              {providerLabel}
-                            </span>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => setPlayerHidden(true)}
-                            className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-white/60 hover:text-white hover:bg-white/10 transition-colors"
-                          >
-                            Hide Player
-                          </button>
-                        </div>
-                        {(error || audioNotice) && (
-                          <p className={`mt-2 text-center text-xs ${error ? "text-rose-200" : "text-white/45"}`}>
-                            {error || audioNotice}
-                          </p>
+                      <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => setLanguage(language === "ta" ? "en" : "ta")}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-white/80 transition-colors hover:bg-white/10"
+                        >
+                          <Languages size={13} />
+                          {language === "ta" ? "தமிழ்" : "English"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const index = SPEEDS.indexOf(speed);
+                            setSpeed(SPEEDS[(index + 1) % SPEEDS.length]);
+                          }}
+                          className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-white/80 transition-colors hover:bg-white/10"
+                        >
+                          {speed.toFixed(2).replace(/\.00$/, "")}x
+                        </button>
+                        {providerLabel && (
+                          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-white/55">
+                            {providerLabel}
+                          </span>
                         )}
                       </div>
-                    )}
-
-                    <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-                      <h3 className="text-xs font-semibold text-white/75">Generated narration</h3>
-                      <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-white/72">
-                        {narration || "Preparing narration..."}
-                      </p>
+                      {(error || audioNotice) && (
+                        <p className={`mt-3 text-center text-xs ${error ? "text-rose-200" : "text-white/45"}`}>
+                          {error || audioNotice}
+                        </p>
+                      )}
                     </div>
 
                     <div className="rounded-lg border border-white/10 bg-white/5" id="article-section">
@@ -529,61 +526,6 @@ export default function AudioPlayerPopup() {
             </motion.div>
           </motion.div>
 
-          {playerHidden && (
-            <motion.div
-              key="mini-player"
-              initial={{ y: 80, opacity: 0, scale: 0.95 }}
-              animate={{ y: 0, opacity: 1, scale: 1 }}
-              exit={{ y: 80, opacity: 0, scale: 0.95 }}
-              transition={{ type: "spring", stiffness: 300, damping: 25 }}
-              className="fixed bottom-4 left-4 z-[90]"
-            >
-              <div className="bg-white/10 backdrop-blur-2xl border border-white/20 rounded-xl shadow-2xl p-3 w-72">
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <p className="text-xs font-semibold text-white truncate min-w-0">{title}</p>
-                  <span className="text-[10px] text-white/50 tabular-nums shrink-0">
-                    {formatTime(currentTime)} / {formatTime(duration)}
-                  </span>
-                </div>
-
-                <div className="h-1 rounded-full bg-white/10 mb-2">
-                  <div className="h-full rounded-full bg-teal-400" style={{ width: `${progress}%` }} />
-                </div>
-
-                <div className="flex items-center justify-between gap-1">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); prev(); }}
-                    className="p-1.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors"
-                    aria-label="Previous article"
-                  >
-                    <SkipBack size={14} />
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); toggle(); }}
-                    className="p-2 rounded-full bg-teal-400 text-slate-950 shadow-lg"
-                    aria-label={isPlaying ? "Pause" : "Play"}
-                  >
-                    {isPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); next(); }}
-                    className="p-1.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors"
-                    aria-label="Next article"
-                  >
-                    <SkipForward size={14} />
-                  </button>
-                  <div className="w-px h-6 bg-white/10 mx-1" />
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setPlayerHidden(false); }}
-                    className="p-1.5 rounded-lg text-white/60 hover:text-teal-300 hover:bg-white/10 transition-colors"
-                    aria-label="Expand player"
-                  >
-                    <Maximize2 size={14} />
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          )}
         </>
       )}
     </AnimatePresence>
