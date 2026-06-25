@@ -61,7 +61,10 @@ function mediaErrorMessage(audio: HTMLAudioElement): string {
 
 function resolveAudioUrl(value: string | undefined): string {
   if (!value) throw new Error("Audio API did not return an audio URL");
-  const url = new URL(value, window.location.href);
+  const rawUrl = value.trim();
+  if (rawUrl.startsWith("/api/tts/audio/")) return rawUrl;
+
+  const url = new URL(rawUrl, window.location.href);
   if (url.origin !== window.location.origin || !url.pathname.startsWith("/api/tts/audio/")) {
     throw new Error("Audio API returned an invalid audio URL");
   }

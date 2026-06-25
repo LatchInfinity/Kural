@@ -6,6 +6,7 @@ import {
   deleteCachedAudio,
   getCachedAudioInfo,
   saveCachedAudio,
+  validateAudioUrl,
   type CachedAudioInfo,
 } from "@/lib/tts-cache";
 
@@ -300,10 +301,16 @@ function readyAudioResponse(
   cacheStatus: "HIT" | "MISS",
   startedAt: number,
 ): NextResponse {
-  const audioUrl = buildAudioUrl(request.url, cacheKey);
+  const audioUrl = buildAudioUrl(request, cacheKey);
+  validateAudioUrl(audioUrl, request, cacheKey);
   const finishedAt = Date.now();
 
   logAudioFileExists(cacheKey, info);
+  console.log("[AUDIO URL GENERATED]", {
+    cacheKey,
+    audioUrl,
+    environment: process.env.NODE_ENV,
+  });
   console.log("[AUDIO URL]", {
     cacheKey,
     url: audioUrl,

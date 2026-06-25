@@ -52,9 +52,36 @@ export function isSupportedAudioContentType(value: string | null | undefined): b
   return normalizeAudioContentType(value) !== null;
 }
 
-export function buildAudioUrl(requestUrl: string, cacheKey: string): string {
-  const url = new URL(requestUrl);
-  return `${url.origin}/api/tts/audio/${cacheKey}`;
+function isValidHost(value: string): boolean {
+  return /^[a-z0-9.-]+(?::\d+)?$/i.test(value);
+}
+
+export function getBaseUrl(req: Request): string {
+  const host = req.headers.get("host")?.trim();
+  if (!host || !isValidHost(host)) {
+    throw new Error("Cannot generate audio URL: missing or invalid host header");
+  }
+
+  const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
+  return `${protocol}://${host}`;
+}
+
+export function buildAudioUrl(request: Request, cacheKey: string): string {
+  if (!isValidTtsCacheKey(cacheKey)) {
+    throw new Error("Cannot generate audio URL: invalid cache key");
+  }
+
+  return `${getBaseUrl(request)}/api/tts/audio/${cacheKey}`;
+}
+
+export function validateAudioUrl(audioUrl: string, request: Request, cacheKey: string): void {
+  const url = new URL(audioUrl);
+  const expectedBaseUrl = getBaseUrl(request);
+  const expectedPath = `/api/tts/audio/${cacheKey}`;
+
+  if (url.origin !== expectedBaseUrl || url.pathname !== expectedPath || url.search || url.hash) {
+    throw new Error("Cannot return audio URL: generated URL failed validation");
+  }
 }
 
 export async function getCachedAudioInfo(cacheKey: string): Promise<CachedAudioInfo | null> {
