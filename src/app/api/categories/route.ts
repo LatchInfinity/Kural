@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
 import { getDbInstance } from "@/lib/db";
 import { NEWS_RETENTION_MS, TAMIL_NADU_NEWS_CATEGORIES } from "@/lib/news-config";
+import { ensureFreshNewsAvailable } from "@/lib/news-bootstrap";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+export const maxDuration = 120;
 
 export async function GET() {
   try {
     const db = getDbInstance();
+    await ensureFreshNewsAvailable();
     const freshCutoff = new Date(Date.now() - NEWS_RETENTION_MS).toISOString();
 
     const allowedCategoryPlaceholders = TAMIL_NADU_NEWS_CATEGORIES.map(() => "?").join(", ");

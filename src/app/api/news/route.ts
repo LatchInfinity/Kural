@@ -4,10 +4,12 @@ import { type ArticleDbRow, mapArticleRow } from "@/lib/api-utils";
 import { balanceSources } from "@/lib/rss/balancer";
 import { MAX_ARTICLES_HOME, NEWS_PER_CATEGORY, NEWS_RETENTION_MS, TAMIL_NADU_NEWS_CATEGORIES } from "@/lib/news-config";
 import { isDisplayableNewsCategory, isDisplayableNewsItem } from "@/lib/news-policy";
+import { ensureFreshNewsAvailable } from "@/lib/news-bootstrap";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+export const maxDuration = 120;
 
 const SORT_OPTIONS = {
   published_at: "published_at DESC",
@@ -43,6 +45,7 @@ export async function GET(request: NextRequest) {
   const freshCutoff = new Date(Date.now() - NEWS_RETENTION_MS).toISOString();
 
   cleanupStoredArticles(db);
+  await ensureFreshNewsAvailable();
 
   const allowedCategoryPlaceholders = TAMIL_NADU_NEWS_CATEGORIES.map(() => "?").join(", ");
   let where = `category IN (${allowedCategoryPlaceholders})`;
