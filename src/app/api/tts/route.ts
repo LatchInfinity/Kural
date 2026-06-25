@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import path from "path";
-import { promises as fs } from "fs";
 import { buildAudioBulletinFromText } from "@/lib/news-text";
+import {
+  buildAudioUrl,
+  deleteCachedAudio,
+  getCachedAudioInfo,
+  saveCachedAudio,
+  type CachedAudioInfo,
+} from "@/lib/tts-cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,6 +30,7 @@ interface TtsBody {
   gender?: VoiceGender;
   speed?: number;
   voiceId?: string;
+  forceRegenerate?: boolean;
 }
 
 const SARVAM_MODEL = "bulbul:v3";
@@ -58,21 +64,7 @@ interface SelectedVoice {
   name: string;
 }
 
-interface CachedAudioMeta {
-  provider: "sarvam" | "elevenlabs";
-  contentType: string;
-  voiceId?: string;
-  voiceName: string;
-  createdAt: string;
-  newsId?: string;
-}
-
 const voiceCache = new Map<string, { expiresAt: number; voices: ElevenVoice[] }>();
-const TTS_CACHE_ROOT = path.join(/*turbopackIgnore: true*/ process.cwd(), "data", "tts-cache");
-
-function ttsCacheDir(): string {
-  return TTS_CACHE_ROOT;
-}
 
 function getApiKeys(): string[] {
   const raw = process.env.ELEVENLABS_API_KEYS || process.env.ELEVENLABS_API_KEY || "";
@@ -291,6 +283,66 @@ function headerSafe(value: string): string {
   return safe || "Generated voice";
 }
 
+function logAudioFileExists(cacheKey: string, info: CachedAudioInfo): void {
+  console.log("[AUDIO FILE EXISTS]", {
+    cacheKey,
+    exists: true,
+    path: info.audioPath,
+    bytes: info.size,
+    contentType: info.meta.contentType,
+  });
+}
+
+function readyAudioResponse(
+  request: NextRequest,
+  cacheKey: string,
+  info: CachedAudioInfo,
+  cacheStatus: "HIT" | "MISS",
+  startedAt: number,
+): NextResponse {
+  const audioUrl = buildAudioUrl(request.url, cacheKey);
+  const finishedAt = Date.now();
+
+  logAudioFileExists(cacheKey, info);
+  console.log("[AUDIO URL]", {
+    cacheKey,
+    url: audioUrl,
+    expires: false,
+  });
+  console.log("[AUDIO API RESPONSE]", {
+    status: "ready",
+    cacheKey,
+    cache: cacheStatus,
+    provider: info.meta.provider,
+    contentType: info.meta.contentType,
+    bytes: info.size,
+    startedAt: new Date(startedAt).toISOString(),
+    finishedAt: new Date(finishedAt).toISOString(),
+    elapsedMs: finishedAt - startedAt,
+  });
+
+  return NextResponse.json({
+    status: "ready",
+    audioUrl,
+    cacheKey,
+    cache: cacheStatus,
+    provider: info.meta.provider,
+    contentType: info.meta.contentType,
+    bytes: info.size,
+    voiceName: info.meta.voiceName,
+    voiceId: info.meta.voiceId || null,
+  }, {
+    headers: {
+      "Cache-Control": "no-store",
+      "X-Kural-TTS": info.meta.provider,
+      "X-Kural-TTS-Cache": cacheStatus,
+      ...(info.meta.voiceId ? { "X-Kural-Voice-Id": info.meta.voiceId } : {}),
+      "X-Kural-Voice-Name": headerSafe(info.meta.voiceName),
+      "X-Kural-Audio-Url": audioUrl,
+    },
+  });
+}
+
 function ttsCacheKey(text: string, body: TtsBody): string {
   const payload = {
     version: 1,
@@ -301,57 +353,6 @@ function ttsCacheKey(text: string, body: TtsBody): string {
     voiceId: body.voiceId || "",
   };
   return crypto.createHash("sha256").update(JSON.stringify(payload)).digest("hex");
-}
-
-function cachePaths(cacheKey: string): { audioPath: string; metaPath: string } {
-  return {
-    audioPath: path.join(TTS_CACHE_ROOT, `${cacheKey}.audio`),
-    metaPath: path.join(TTS_CACHE_ROOT, `${cacheKey}.json`),
-  };
-}
-
-async function readCachedAudio(cacheKey: string): Promise<{ audio: Buffer; meta: CachedAudioMeta } | null> {
-  const { audioPath, metaPath } = cachePaths(cacheKey);
-  try {
-    const [audio, metaRaw] = await Promise.all([
-      fs.readFile(audioPath),
-      fs.readFile(metaPath, "utf8"),
-    ]);
-    const meta = JSON.parse(metaRaw) as CachedAudioMeta;
-    if (!meta.contentType || !meta.provider) return null;
-    return { audio, meta };
-  } catch {
-    return null;
-  }
-}
-
-async function saveCachedAudio(cacheKey: string, audio: Buffer, meta: CachedAudioMeta, newsId?: string): Promise<void> {
-  const { audioPath, metaPath } = cachePaths(cacheKey);
-  if (newsId) meta.newsId = newsId;
-  await fs.mkdir(ttsCacheDir(), { recursive: true });
-  await Promise.all([
-    fs.writeFile(audioPath, audio),
-    fs.writeFile(metaPath, JSON.stringify(meta, null, 2), "utf8"),
-  ]);
-}
-
-function audioBody(audio: Buffer): ArrayBuffer {
-  const bytes = new Uint8Array(audio.byteLength);
-  bytes.set(audio);
-  return bytes.buffer;
-}
-
-function cachedAudioResponse(audio: Buffer, meta: CachedAudioMeta): NextResponse {
-  return new NextResponse(audioBody(audio), {
-    headers: {
-      "Content-Type": meta.contentType,
-      "Cache-Control": "public, max-age=31536000, immutable",
-      "X-Kural-TTS": meta.provider,
-      "X-Kural-TTS-Cache": "HIT",
-      ...(meta.voiceId ? { "X-Kural-Voice-Id": meta.voiceId } : {}),
-      "X-Kural-Voice-Name": headerSafe(meta.voiceName),
-    },
-  });
 }
 
 function sarvamLanguageCode(language: AudioLang): string {
@@ -487,6 +488,7 @@ function sarvamVoiceName(body: TtsBody): string {
 }
 
 export async function POST(request: NextRequest) {
+  const startedAt = Date.now();
   try {
     const body = await request.json().catch(() => ({})) as TtsBody;
     const language = body.language || "ta";
@@ -497,9 +499,23 @@ export async function POST(request: NextRequest) {
     const text = sanitizeText(normalizeSpeechText(buildAudioBulletinFromText(rawText, language), language));
 
     const cacheKey = ttsCacheKey(text, body);
-    const cached = await readCachedAudio(cacheKey);
-    if (cached) {
-      return cachedAudioResponse(cached.audio, cached.meta);
+    console.log("[AUDIO START]", {
+      cacheKey,
+      newsId: body.newsId || null,
+      language,
+      gender: body.gender || "female",
+      speed: clampSarvamPace(body.speed),
+      forceRegenerate: Boolean(body.forceRegenerate),
+      startedAt: new Date(startedAt).toISOString(),
+    });
+
+    if (body.forceRegenerate) {
+      await deleteCachedAudio(cacheKey);
+    } else {
+      const cached = await getCachedAudioInfo(cacheKey);
+      if (cached) {
+        return readyAudioResponse(request, cacheKey, cached, "HIT", startedAt);
+      }
     }
 
     let lastStatus = 500;
@@ -520,21 +536,13 @@ export async function POST(request: NextRequest) {
 
           const audio = Buffer.from(audioBase64, "base64");
           const voiceName = sarvamVoiceName(body);
-          await saveCachedAudio(cacheKey, audio, {
+          const info = await saveCachedAudio(cacheKey, audio, {
             provider: "sarvam",
             contentType: "audio/wav",
             voiceName,
             createdAt: new Date().toISOString(),
-          }, body.newsId).catch((err) => console.warn("[Kural TTS] Failed to cache Sarvam audio:", err));
-          return new NextResponse(audio, {
-            headers: {
-              "Content-Type": "audio/wav",
-              "Cache-Control": "public, max-age=31536000, immutable",
-              "X-Kural-TTS": "sarvam",
-              "X-Kural-TTS-Cache": "MISS",
-              "X-Kural-Voice-Name": headerSafe(voiceName),
-            },
-          });
+          }, body.newsId);
+          return readyAudioResponse(request, cacheKey, info, "MISS", startedAt);
         }
 
         lastStatus = response.status;
@@ -549,6 +557,12 @@ export async function POST(request: NextRequest) {
 
     const keys = getApiKeys();
     if (keys.length === 0 && sarvamKeys.length === 0) {
+      console.log("[AUDIO API RESPONSE]", {
+        status: "error",
+        cacheKey,
+        error: "Voice provider is not configured",
+        elapsedMs: Date.now() - startedAt,
+      });
       return NextResponse.json({ error: "Voice provider is not configured" }, { status: 501 });
     }
 
@@ -559,23 +573,14 @@ export async function POST(request: NextRequest) {
         if (response.ok) {
           const audio = Buffer.from(await response.arrayBuffer());
           const contentType = response.headers.get("content-type") || "audio/mpeg";
-          await saveCachedAudio(cacheKey, audio, {
+          const info = await saveCachedAudio(cacheKey, audio, {
             provider: "elevenlabs",
             contentType,
             voiceId: selectedVoice.voiceId,
             voiceName: selectedVoice.name,
             createdAt: new Date().toISOString(),
-          }, body.newsId).catch((err) => console.warn("[Kural TTS] Failed to cache ElevenLabs audio:", err));
-          return new NextResponse(audio, {
-            headers: {
-              "Content-Type": contentType,
-              "Cache-Control": "public, max-age=31536000, immutable",
-              "X-Kural-TTS": "elevenlabs",
-              "X-Kural-TTS-Cache": "MISS",
-              "X-Kural-Voice-Id": selectedVoice.voiceId,
-              "X-Kural-Voice-Name": headerSafe(selectedVoice.name),
-            },
-          });
+          }, body.newsId);
+          return readyAudioResponse(request, cacheKey, info, "MISS", startedAt);
         }
 
         lastStatus = response.status;
@@ -588,8 +593,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    console.log("[AUDIO API RESPONSE]", {
+      status: "error",
+      cacheKey,
+      error: lastMessage,
+      httpStatus: lastStatus,
+      elapsedMs: Date.now() - startedAt,
+    });
     return NextResponse.json({ error: lastMessage }, { status: lastStatus });
   } catch (err) {
+    console.log("[AUDIO API RESPONSE]", {
+      status: "error",
+      error: err instanceof Error ? err.message : String(err),
+      elapsedMs: Date.now() - startedAt,
+    });
     return NextResponse.json(
       { error: err instanceof Error ? err.message : String(err) },
       { status: 500 },
