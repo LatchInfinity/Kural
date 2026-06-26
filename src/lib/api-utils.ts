@@ -1,6 +1,7 @@
 import type { NewsItem } from "@/types";
 import { buildEnglishSummary, buildNewsContent, buildNewsSummary, cleanNewsTitle } from "@/lib/news-text";
 import { resolveArticleVideo } from "@/lib/news-video";
+import { getCategoryFallbackImageUrl } from "@/lib/category-images";
 
 export interface ArticleDbRow {
   id: string;
@@ -56,16 +57,9 @@ export function errorStack(error: unknown): string {
   return error instanceof Error ? error.stack || error.message : String(error);
 }
 
-function sanitizeUrl(value: string | null | undefined): string {
-  if (!value) return "";
-  const trimmed = value.trim();
-  if (trimmed === "" || trimmed === "null" || trimmed === "undefined") return "";
-  return trimmed;
-}
-
 export function mapArticleRow(
   row: ArticleDbRow,
-  options: { resolveImage?: (row: ArticleDbRow) => string } = {},
+  _options: { resolveImage?: (row: ArticleDbRow) => string } = {},
 ): ArticleApiItem {
   const headline = cleanNewsTitle(row.headline || row.title);
   const title = cleanNewsTitle(row.title);
@@ -73,7 +67,7 @@ export function mapArticleRow(
   const summary = buildNewsSummary(row.summary || "", content, headline);
   const category = (row.category || "தமிழ்நாடு உள்ளூர்") as NewsItem["category"];
   const retention = row.retention || "recent";
-  const imageUrl = options.resolveImage ? options.resolveImage(row) : sanitizeUrl(row.image_url);
+  const categoryAiImageUrl = getCategoryFallbackImageUrl(category, true);
   const englishSummary = buildEnglishSummary({ headline, summary, content, category });
   const resolvedVideo = resolveArticleVideo({
     id: row.id,
@@ -84,10 +78,10 @@ export function mapArticleRow(
     category,
     district: row.district || "",
     keywords: [row.search_keywords || "", row.tags || ""],
-    thumbnailUrl: row.video_thumbnail || row.ai_image_url || imageUrl,
+    thumbnailUrl: categoryAiImageUrl,
   });
   const aiVideoUrl = row.ai_video_url || resolvedVideo.aiVideoUrl;
-  const videoThumbnail = row.video_thumbnail || resolvedVideo.videoThumbnail || row.ai_image_url || imageUrl;
+  const videoThumbnail = categoryAiImageUrl;
 
   return {
     id: row.id,
@@ -100,8 +94,8 @@ export function mapArticleRow(
     source: row.source,
     sourceUrl: row.source_url || "",
     sourceLogoUrl: row.source_logo_url || "",
-    imageUrl,
-    aiImageUrl: sanitizeUrl(row.ai_image_url),
+    imageUrl: categoryAiImageUrl,
+    aiImageUrl: categoryAiImageUrl,
     aiVideoUrl,
     videoStatus: row.video_status || resolvedVideo.videoStatus,
     videoPrompt: row.video_prompt || resolvedVideo.videoPrompt,

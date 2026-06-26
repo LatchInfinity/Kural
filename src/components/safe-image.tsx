@@ -1,5 +1,5 @@
 "use client";
-import { useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 export default function SafeImage({
   src,
@@ -18,11 +18,23 @@ export default function SafeImage({
   className?: string;
   style?: React.CSSProperties;
 }) {
-  const primary = src && src.trim() ? src : null;
-  const secondary = aiSrc && aiSrc.trim() ? aiSrc : null;
-  const tertiary = fallbackSrc && fallbackSrc.trim() ? fallbackSrc : null;
-  const initial = primary || secondary || tertiary;
-  const [imgSrc, setImgSrc] = useState<string | null>(initial);
+  const candidates = useMemo(() => {
+    const seen = new Set<string>();
+    return [src, aiSrc, fallbackSrc]
+      .map((value) => (value || "").trim())
+      .filter((value) => {
+        if (!value || seen.has(value)) return false;
+        seen.add(value);
+        return true;
+      });
+  }, [aiSrc, fallbackSrc, src]);
+  const candidateKey = candidates.join("|");
+  const [imageIndex, setImageIndex] = useState(0);
+  const imgSrc = candidates[imageIndex] || null;
+
+  useEffect(() => {
+    setImageIndex(0);
+  }, [candidateKey]);
 
   if (!imgSrc) return fallback || null;
 
@@ -32,15 +44,7 @@ export default function SafeImage({
       alt={alt}
       className={className}
       style={style}
-      onError={() => {
-        if (imgSrc === primary && secondary) {
-          setImgSrc(secondary);
-        } else if ((imgSrc === primary || imgSrc === secondary) && tertiary) {
-          setImgSrc(tertiary);
-        } else {
-          setImgSrc(null);
-        }
-      }}
+      onError={() => setImageIndex((current) => current + 1)}
     />
   );
 }

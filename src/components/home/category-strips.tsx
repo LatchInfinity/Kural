@@ -119,7 +119,6 @@ function CategoryStrip({
         className="flex gap-3 overflow-x-auto scrollbar-none pb-2 -mx-4 px-4"
       >
         {articles.map((item) => {
-          const thumbnail = item.aiImageUrl || item.imageUrl || getCategoryFallbackImageUrl(item.category);
           return (
             <div
               key={item.id}
@@ -127,7 +126,9 @@ function CategoryStrip({
             >
               <div className="relative aspect-[16/10] overflow-hidden bg-surface-secondary">
                 <SafeImage
-                  src={thumbnail}
+                  src={item.aiImageUrl}
+                  aiSrc={item.imageUrl}
+                  fallbackSrc={getCategoryFallbackImageUrl(item.category, true)}
                   alt=""
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   fallback={<div className="w-full h-full flex items-center justify-center text-2xl text-foreground-secondary/20">{icon}</div>}

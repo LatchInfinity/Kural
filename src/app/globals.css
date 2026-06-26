@@ -286,6 +286,11 @@ body > .skiptranslate,
 .text-white\/80 { color: color-mix(in oklab, var(--color-white) 80%, transparent); }
 
 /* ===== MOBILE ONLY STYLES ===== */
+.desktop-only,
+.mobile-only {
+  display: contents;
+}
+
 @media (max-width: 767px) {
   .desktop-only { display: none !important; }
 }
@@ -294,13 +299,21 @@ body > .skiptranslate,
 }
 
 :root {
-  --mobile-bg: #050816;
-  --mobile-card: #0D1630;
-  --mobile-accent: #00E5FF;
-  --mobile-secondary: #4FD1C5;
-  --mobile-accent-secondary: #3B82F6;
-  --mobile-text: #FFFFFF;
-  --mobile-text-secondary: #94A3B8;
+  --mobile-bg: #f6f8f7;
+  --mobile-card: #ffffff;
+  --mobile-ink: #111827;
+  --mobile-red: #b91c1c;
+  --mobile-teal: #0f766e;
+  --mobile-gold: #b45309;
+  --mobile-soft: #f4e8e8;
+  --mobile-border: rgba(17, 24, 39, 0.1);
+  --mobile-muted: #667085;
+  --mobile-shadow: 0 18px 42px rgba(17, 24, 39, 0.1);
+  --mobile-accent: var(--mobile-red);
+  --mobile-secondary: var(--mobile-teal);
+  --mobile-accent-secondary: var(--mobile-gold);
+  --mobile-text: var(--mobile-ink);
+  --mobile-text-secondary: var(--mobile-muted);
 }
 
 .mobile-layout {
@@ -1250,20 +1263,78 @@ body {
 
   .mobile-layout {
     background:
-      radial-gradient(circle at 15% 0%, rgba(0, 229, 255, 0.16), transparent 14rem),
-      radial-gradient(circle at 95% 12%, rgba(79, 209, 197, 0.12), transparent 12rem),
-      linear-gradient(180deg, #060a1d 0%, var(--mobile-bg) 42%, #030511 100%);
+      linear-gradient(180deg, rgba(185, 28, 28, 0.08) 0, rgba(15, 118, 110, 0.05) 220px, transparent 440px),
+      linear-gradient(90deg, rgba(17, 24, 39, 0.035), rgba(255, 255, 255, 0) 45%),
+      var(--mobile-bg);
     min-height: 100dvh;
-    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+    padding-bottom: calc(142px + env(safe-area-inset-bottom));
   }
 
   .mobile-card {
-    background: linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.025)), var(--mobile-card);
-    border: 1px solid rgba(255,255,255,0.075);
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.22);
+    background: var(--mobile-card);
+    border: 1px solid var(--mobile-border);
+    box-shadow: var(--mobile-shadow);
   }
 
   .mobile-chip {
     min-height: 36px;
+  }
+
+  .kural-mobile-shell {
+    color: var(--mobile-ink);
+  }
+
+  .kural-mobile-header {
+    position: sticky;
+    top: 0;
+    z-index: 70;
+    border-bottom: 1px solid rgba(17, 24, 39, 0.08);
+    background: rgba(246, 248, 247, 0.88);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+
+  .kural-mobile-main {
+    display: flex;
+    flex-direction: column;
+    gap: 1.35rem;
+    padding: 1rem 1rem 0;
+  }
+
+  .kural-mobile-bottom-nav {
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    z-index: 72;
+  }
+
+  .kural-mobile-mini-player {
+    position: fixed;
+    left: 0.75rem;
+    right: 0.75rem;
+    bottom: calc(4.65rem + env(safe-area-inset-bottom));
+    z-index: 71;
+  }
+
+  .kural-mobile-art-fallback {
+    display: grid;
+    place-items: center;
+    background:
+      linear-gradient(135deg, rgba(185, 28, 28, 0.92), rgba(17, 24, 39, 0.94) 54%, rgba(15, 118, 110, 0.86)),
+      var(--mobile-ink);
+    color: #fff;
+  }
+
+  .kural-mobile-wave-bar {
+    width: 3px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, var(--mobile-red), var(--mobile-gold));
+    transform-origin: bottom;
+    animation: kural-mobile-wave 1.05s ease-in-out infinite;
+  }
+
+  @keyframes kural-mobile-wave {
+    0%, 100% { transform: scaleY(0.42); opacity: 0.58; }
+    50% { transform: scaleY(1); opacity: 1; }
   }
 }

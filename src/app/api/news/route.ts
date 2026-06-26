@@ -14,6 +14,16 @@ const SORT_OPTIONS = {
   trending: "plays_count + shares_count + saves_count + reactions_count DESC, published_at DESC",
 } as const;
 
+const ARTICLE_SELECT_FIELDS = `
+  id, title, headline, summary, content, source, source_url, source_logo_url,
+  image_url, image_source, ai_image_url, ai_image_prompt, ai_image_generated_at,
+  ai_video_url, video_status, video_prompt, video_generated_at, video_duration, video_thumbnail,
+  animation_scene, animation_embed_url, district,
+  plays_count, shares_count, saves_count, reactions_count,
+  category, published_at, language, audio_generated, retention, created_at, updated_at,
+  slug, search_keywords, tags
+`;
+
 function limitArticlesPerCategory<T extends { category?: string }>(items: T[]): T[] {
   const counts = new Map<string, number>();
   return items.filter((item) => {
@@ -41,6 +51,10 @@ export async function GET(request: NextRequest) {
   const district = url.searchParams.get("district") || "";
   const sort = url.searchParams.get("sort") || "published_at";
   const freshCutoff = new Date(Date.now() - NEWS_RETENTION_MS).toISOString();
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayCutoff = todayStart.toISOString();
+  const maxCategoryArticles = NEWS_PER_CATEGORY * TAMIL_NADU_NEWS_CATEGORIES.length;
 
   cleanupStoredArticles(db);
 
@@ -122,22 +136,39 @@ export async function GET(request: NextRequest) {
 
   const orderBy = sort === "trending" ? SORT_OPTIONS.trending : SORT_OPTIONS.published_at;
 
-  const countRow = db.prepare(`SELECT COUNT(*) as total FROM articles WHERE ${where}`).get(...params) as { total: number };
+  const rankedParams: unknown[] = [todayCutoff, ...params, NEWS_PER_CATEGORY];
+  const countRow = db.prepare(`
+    WITH ranked_articles AS (
+      SELECT category,
+             ROW_NUMBER() OVER (
+               PARTITION BY category
+               ORDER BY CASE WHEN published_at >= ? THEN 0 ELSE 1 END, ${orderBy}
+             ) as category_rank
+      FROM articles
+      WHERE ${where}
+    )
+    SELECT COUNT(*) as total
+    FROM ranked_articles
+    WHERE category_rank <= ?
+  `).get(...rankedParams) as { total: number };
   const total = countRow.total;
 
   const rows = db.prepare(`
-    SELECT id, title, headline, summary, content, source, source_url, source_logo_url,
-           image_url, image_source, ai_image_url, ai_image_prompt, ai_image_generated_at,
-           ai_video_url, video_status, video_prompt, video_generated_at, video_duration, video_thumbnail,
-           animation_scene, animation_embed_url, district,
-           plays_count, shares_count, saves_count, reactions_count,
-           category, published_at, language, audio_generated, retention, created_at, updated_at,
-           slug, search_keywords, tags
-    FROM articles
-    WHERE ${where}
-    ORDER BY ${orderBy}
+    WITH ranked_articles AS (
+      SELECT ${ARTICLE_SELECT_FIELDS},
+             ROW_NUMBER() OVER (
+               PARTITION BY category
+               ORDER BY CASE WHEN published_at >= ? THEN 0 ELSE 1 END, ${orderBy}
+             ) as category_rank
+      FROM articles
+      WHERE ${where}
+    )
+    SELECT ${ARTICLE_SELECT_FIELDS}
+    FROM ranked_articles
+    WHERE category_rank <= ?
+    ORDER BY CASE WHEN published_at >= ? THEN 0 ELSE 1 END, ${orderBy}
     LIMIT ? OFFSET ?
-  `).all(...params, Math.max(limit, NEWS_PER_CATEGORY * TAMIL_NADU_NEWS_CATEGORIES.length), offset) as ArticleDbRow[];
+  `).all(...rankedParams, todayCutoff, Math.max(limit, maxCategoryArticles), offset) as ArticleDbRow[];
 
   const mapped = rows.map((row) => mapArticleRow(row)).filter(isDisplayableNewsItem);
   const balanced = balanceSources(mapped, { maxConsecutive: 1, sortByRecency: sort !== "trending" });

@@ -12,6 +12,7 @@ import {
 } from "@/lib/news-text";
 import { MAX_ARTICLES_HOME, NEWS_PER_CATEGORY, NEWS_RETENTION_MS, SYNC_INTERVAL_MS } from "@/lib/news-config";
 import { isDisplayableNewsCategory, isDisplayableNewsItem } from "@/lib/news-policy";
+import { getCategoryFallbackImageUrl } from "@/lib/category-images";
 
 export type PulseTab = "breaking" | "last-hour" | "today" | "last-3-days";
 
@@ -157,6 +158,7 @@ function resolveDisplayArticles(items: NewsItem[] | undefined): NewsItem[] {
     const headline = cleanNewsTitle(item.headline || item.title);
     const content = buildNewsContent(item.summary || item.tamilSummary, item.content, headline);
     const summary = buildNewsSummary(item.summary || item.tamilSummary, content, headline);
+    const categoryAiImageUrl = getCategoryFallbackImageUrl(item.category, true);
 
     return {
       ...item,
@@ -169,6 +171,9 @@ function resolveDisplayArticles(items: NewsItem[] | undefined): NewsItem[] {
       content,
       publishedAt,
       publishedHour: new Date(publishedAt).getHours(),
+      imageUrl: categoryAiImageUrl,
+      aiImageUrl: categoryAiImageUrl,
+      videoThumbnail: categoryAiImageUrl,
       retention,
       isBreaking: item.isBreaking || retention === "breaking",
       trending: item.trending || retention === "breaking",
@@ -235,6 +240,7 @@ function mapDbArticle(a: ApiNewsArticle): NewsItem {
   const headline = cleanNewsTitle(a.headline || a.title);
   const content = buildNewsContent(a.summary || a.tamilSummary, a.content || "", headline);
   const summary = buildNewsSummary(a.summary || a.tamilSummary, content, headline);
+  const categoryAiImageUrl = getCategoryFallbackImageUrl(a.category, true);
 
   return {
     id: a.id,
@@ -248,14 +254,14 @@ function mapDbArticle(a: ApiNewsArticle): NewsItem {
     source: a.source,
     sourceUrl: a.sourceUrl || "",
     sourceLogoUrl: a.sourceLogoUrl || "",
-    imageUrl: a.imageUrl || "",
-    aiImageUrl: a.aiImageUrl || "",
+    imageUrl: categoryAiImageUrl,
+    aiImageUrl: categoryAiImageUrl,
     aiVideoUrl: a.aiVideoUrl || "",
     videoStatus: a.videoStatus,
     videoPrompt: a.videoPrompt || "",
     videoGeneratedAt: a.videoGeneratedAt || "",
     videoDuration: a.videoDuration || 5,
-    videoThumbnail: a.videoThumbnail || a.aiImageUrl || a.imageUrl || "",
+    videoThumbnail: categoryAiImageUrl,
     district: a.district || "",
     playsCount: a.playsCount || 0,
     sharesCount: a.sharesCount || 0,

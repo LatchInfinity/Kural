@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft, Bookmark, BookmarkCheck, Clock, ExternalLink, Flame,
-  Heart, Languages, Pause, Play, RotateCcw, Share2,
+  Headphones, Heart, Languages, Pause, Play, RotateCcw, Share2,
   SkipBack, SkipForward, Star, ThumbsUp, X,
 } from "lucide-react";
 import SafeImage from "@/components/safe-image";
@@ -16,6 +16,7 @@ import { useUserStore } from "@/store/user-store";
 import type { ReactionType } from "@/types";
 
 const SPEEDS = [0.85, 1, 1.12, 1.2];
+const MOBILE_SPEEDS = [1, 1.25, 1.5] as const;
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds <= 0) return "0:00";
@@ -265,8 +266,207 @@ export default function AudioPlayerPopup() {
       {isOpen && (
         <>
           <motion.div
+            key="mobile-popup-modal"
+            className="fixed inset-0 z-[80] overflow-y-auto bg-[var(--mobile-bg)] text-[var(--mobile-ink)] md:hidden"
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", stiffness: 260, damping: 30 }}
+          >
+            <div className="min-h-full px-4 pb-8 pt-[calc(0.75rem+env(safe-area-inset-top))]">
+              <header className="sticky top-0 z-10 -mx-4 mb-4 flex items-center justify-between gap-3 border-b border-[var(--mobile-border)] bg-[var(--mobile-bg)]/90 px-4 py-3 backdrop-blur-xl">
+                <button
+                  type="button"
+                  onClick={close}
+                  className="grid h-10 w-10 place-items-center rounded-full border border-[var(--mobile-border)] bg-white text-[var(--mobile-ink)]"
+                  aria-label="Close player"
+                >
+                  <ArrowLeft size={18} />
+                </button>
+                <div className="min-w-0 flex-1 text-center">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--mobile-red)]">Now playing</p>
+                  <p className="truncate text-xs font-black text-[var(--mobile-muted)]">Kural Audio</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleShare}
+                  className="grid h-10 w-10 place-items-center rounded-full border border-[var(--mobile-border)] bg-white text-[var(--mobile-ink)]"
+                  aria-label="Share"
+                >
+                  <Share2 size={17} />
+                </button>
+              </header>
+
+              <main className="mx-auto flex max-w-md flex-col gap-5">
+                <div className="overflow-hidden rounded-lg border border-[var(--mobile-border)] bg-white shadow-[var(--mobile-shadow)]">
+                  <div className="aspect-square bg-[var(--mobile-ink)]">
+                    {thumbnail ? (
+                      <SafeImage src={thumbnail} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="grid h-full w-full place-items-center text-white/70">
+                        <Headphones size={44} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <section className="text-center">
+                  {track.category && (
+                    <span className="inline-flex rounded-full bg-[var(--mobile-soft)] px-3 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-[var(--mobile-red)]">
+                      {track.category.replace("தமிழ்நாடு ", "")}
+                    </span>
+                  )}
+                  <h1 className="mt-3 text-2xl font-black leading-tight tracking-tight text-[var(--mobile-ink)]">{title}</h1>
+                  {track.source && <p className="mt-2 text-xs font-bold text-[var(--mobile-muted)]">{track.source}</p>}
+                </section>
+
+                <section className="rounded-lg border border-[var(--mobile-border)] bg-white p-4 shadow-sm">
+                  <input
+                    type="range"
+                    min={0}
+                    max={duration || 0}
+                    step={0.1}
+                    value={Math.min(currentTime, duration || currentTime)}
+                    onChange={(event) => seek(Number(event.currentTarget.value))}
+                    className="w-full accent-[var(--mobile-red)]"
+                    aria-label="Seek audio"
+                  />
+                  <div className="mt-2 flex items-center justify-between text-[11px] font-bold tabular-nums text-[var(--mobile-muted)]">
+                    <span>{formatTime(currentTime)}</span>
+                    <span>{formatTime(duration)}</span>
+                  </div>
+                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-black/10">
+                    <div className="h-full rounded-full bg-[var(--mobile-red)]" style={{ width: `${progress}%` }} />
+                  </div>
+
+                  <div className="mt-5 flex items-center justify-center gap-5">
+                    <button
+                      type="button"
+                      onClick={() => seek(Math.max(0, currentTime - 10))}
+                      className="grid h-12 w-12 place-items-center rounded-full border border-[var(--mobile-border)] bg-[var(--mobile-soft)] text-[var(--mobile-ink)]"
+                      aria-label="Back 10 seconds"
+                    >
+                      <span className="relative">
+                        <SkipBack size={20} />
+                        <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[8px] font-black">10</span>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={toggle}
+                      className="grid h-16 w-16 place-items-center rounded-full bg-[var(--mobile-red)] text-white shadow-xl shadow-red-900/20"
+                      aria-label={isPlaying ? "Pause audio" : "Play audio"}
+                    >
+                      {isPlaying ? <Pause size={26} fill="currentColor" /> : <Play size={26} fill="currentColor" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => seek(duration ? Math.min(duration, currentTime + 10) : currentTime + 10)}
+                      className="grid h-12 w-12 place-items-center rounded-full border border-[var(--mobile-border)] bg-[var(--mobile-soft)] text-[var(--mobile-ink)]"
+                      aria-label="Forward 10 seconds"
+                    >
+                      <span className="relative">
+                        <SkipForward size={20} />
+                        <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[8px] font-black">10</span>
+                      </span>
+                    </button>
+                  </div>
+
+                  <div className="mt-5 grid grid-cols-3 gap-2 rounded-full bg-[var(--mobile-soft)] p-1">
+                    {MOBILE_SPEEDS.map((option) => {
+                      const active = Math.abs(speed - option) < 0.01;
+                      return (
+                        <button
+                          key={option}
+                          type="button"
+                          onClick={() => setSpeed(option)}
+                          className="h-9 rounded-full text-xs font-black transition-colors"
+                          style={{
+                            background: active ? "var(--mobile-ink)" : "transparent",
+                            color: active ? "#fff" : "var(--mobile-muted)",
+                          }}
+                        >
+                          {option}x
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {(error || audioNotice || isLoading) && (
+                    <p className={`mt-3 text-center text-xs font-semibold ${error ? "text-red-700" : "text-[var(--mobile-muted)]"}`}>
+                      {error || audioNotice || "Preparing audio"}
+                    </p>
+                  )}
+                </section>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleShare}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-[var(--mobile-border)] bg-white text-xs font-black text-[var(--mobile-ink)] shadow-sm"
+                  >
+                    <Share2 size={15} />
+                    Share
+                  </button>
+                  {sourceUrlDisplay ? (
+                    <a
+                      href={sourceUrlDisplay}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[var(--mobile-ink)] px-3 text-center text-xs font-black text-white shadow-sm"
+                    >
+                      <ExternalLink size={15} />
+                      Open full article
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setArticleExpanded(true);
+                        document.getElementById("mobile-player-article")?.scrollIntoView({ behavior: "smooth" });
+                      }}
+                      className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[var(--mobile-ink)] px-3 text-center text-xs font-black text-white shadow-sm"
+                    >
+                      <ExternalLink size={15} />
+                      Open full article
+                    </button>
+                  )}
+                </div>
+
+                <section id="mobile-player-article" className="rounded-lg border border-[var(--mobile-border)] bg-white p-4 shadow-sm">
+                  <h2 className="text-xs font-black uppercase tracking-[0.14em] text-[var(--mobile-red)]">Full article</h2>
+                  <p
+                    className="mt-3 whitespace-pre-wrap text-sm leading-7 text-[var(--mobile-muted)]"
+                    style={
+                      articleExpanded
+                        ? {}
+                        : {
+                            display: "-webkit-box",
+                            WebkitLineClamp: 8,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                          }
+                    }
+                  >
+                    {articleText || title}
+                  </p>
+                  {articleText && (
+                    <button
+                      type="button"
+                      onClick={() => setArticleExpanded(!articleExpanded)}
+                      className="mt-3 text-xs font-black text-[var(--mobile-red)]"
+                    >
+                      {articleExpanded ? "Show Less" : "Show More"}
+                    </button>
+                  )}
+                </section>
+              </main>
+            </div>
+          </motion.div>
+
+          <motion.div
             key="popup-modal"
-            className="fixed inset-0 z-[80] bg-slate-950/90 backdrop-blur-xl text-white"
+            className="fixed inset-0 z-[80] hidden bg-slate-950/90 text-white backdrop-blur-xl md:block"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

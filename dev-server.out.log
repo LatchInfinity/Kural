@@ -16,7 +16,7 @@
   bytes: 331820
 }
  HEAD /api/tts/audio/8334d140462064afa32b144beba563b326173d7ab54fa4c4424dbfa718eeaeb1 200 in 6.3s (next.js: 6.3s, application-code: 77ms)
-[AUDIO HTTP STATUS] {
+[AUDIO HTTP cation STATUS] {
   cacheKey: '8334d140462064afa32b144beba563b326173d7ab54fa4c4424dbfa718eeaeb1',
   status: 200,
   contentType: 'audio/wav',

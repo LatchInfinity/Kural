@@ -1,7 +1,5 @@
 import { getDbInstance, ensureSchema } from "@/lib/db";
-import { generateArticleImage } from "@/lib/rss/image-generator";
 import { getCategoryFallbackImageUrl } from "@/lib/category-images";
-import { getErrorMessage } from "@/lib/api-errors";
 
 interface MissingImageRow {
   id: string;
@@ -89,17 +87,18 @@ export function scanMissingImages(limit: number = 500): {
 
 export function repairArticleImages(
   rows: MissingImageRow[],
-  maxRetries: number = 3,
+  _maxRetries: number = 3,
 ): RepairResult {
   ensureSchema();
   const db = getDbInstance();
 
   const update = db.prepare(`
     UPDATE articles
-    SET ai_image_url = ?,
+    SET image_url = ?,
+        ai_image_url = ?,
         ai_image_prompt = ?,
         ai_image_generated_at = ?,
-        image_source = 'ai_repair',
+        image_source = 'ai',
         updated_at = datetime('now')
     WHERE id = ?
   `);
@@ -122,47 +121,11 @@ export function repairArticleImages(
       }
 
       const title = row.title || row.headline || "";
-      const headline = row.headline || title;
-      const summary = row.summary || "";
       const category = row.category || "தமிழ்நாடு உள்ளூர்";
-      const district = row.district || undefined;
-
-      let success = false;
-      let lastError = "";
-      let attempts = 0;
-
-      while (attempts < maxRetries && !success) {
-        attempts++;
-        try {
-          console.log(`[IMAGE] GENERATE attempt=${attempts}/${maxRetries} id=${row.id} category=${category} title="${title.slice(0, 50)}"`);
-          const aiImage = generateArticleImage({
-            headline: headline.length < 15 ? `${headline} ${category} ${summary}` : headline,
-            category,
-            summary,
-            district,
-          });
-          update.run(aiImage.url, aiImage.prompt, now, row.id);
-          console.log(`[IMAGE] SUCCESS id=${row.id} attempt=${attempts} category=${category} url=${aiImage.url.slice(0, 60)}`);
-          generated++;
-          success = true;
-        } catch (err) {
-          lastError = getErrorMessage(err);
-          console.log(`[IMAGE] FAILED id=${row.id} attempt=${attempts} error=${lastError}`);
-          if (attempts < maxRetries) {
-            const delay = attempts === 1 ? 30000 : attempts === 2 ? 60000 : 120000;
-            console.log(`[IMAGE] RETRY id=${row.id} waiting=${delay}ms attempt=${attempts + 1}/${maxRetries}`);
-          }
-        }
-      }
-
-      if (!success) {
-        failed++;
-        console.log(`[IMAGE] FINAL_FAILURE id=${row.id} category=${category} after=${maxRetries}attempts lastError=${lastError}`);
-        const fallbackUrl = getCategoryFallbackImageUrl(category);
-        update.run(fallbackUrl, `fallback: ${category}`, now, row.id);
-        fallbackUsed++;
-        console.log(`[IMAGE] FALLBACK id=${row.id} url=${fallbackUrl.slice(0, 60)}`);
-      }
+      const aiImageUrl = getCategoryFallbackImageUrl(category, true);
+      update.run(aiImageUrl, aiImageUrl, `category-ai-image: ${category}`, now, row.id);
+      console.log(`[IMAGE] SUCCESS id=${row.id} category=${category} title="${title.slice(0, 50)}" url=${aiImageUrl.slice(0, 60)}`);
+      generated++;
     }
   });
 

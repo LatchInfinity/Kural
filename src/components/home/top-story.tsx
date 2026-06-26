@@ -63,7 +63,6 @@ export default function TopStory() {
 
   if (!top) return null;
 
-  const thumbnail = top.aiImageUrl || top.imageUrl || getCategoryFallbackImageUrl(top.category);
   const duration = top.audioDuration;
 
   return (
@@ -78,7 +77,9 @@ export default function TopStory() {
         >
           <div className="relative aspect-[16/9] lg:aspect-auto lg:h-full min-h-[280px] rounded-lg overflow-hidden bg-surface border border-border">
             <SafeImage
-              src={thumbnail}
+              src={top.aiImageUrl}
+              aiSrc={top.imageUrl}
+              fallbackSrc={getCategoryFallbackImageUrl(top.category, true)}
               alt=""
               className="w-full h-full object-cover"
               fallback={<div className="w-full h-full flex items-center justify-center text-foreground-secondary/20 text-6xl">📰</div>}

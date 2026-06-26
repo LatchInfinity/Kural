@@ -3,10 +3,12 @@ import { cleanupStoredArticles, getDbInstance, ensureSchema } from "@/lib/db";
 import { RSS_SOURCES, type RSSSourceConfig } from "./sources";
 import { fetchFeed, type ParsedArticle } from "./parser";
 import { filterTamilNadu } from "./tn-filter";
-import { generateArticleImage } from "./image-generator";
 import { sseManager } from "@/lib/sse";
 import { NEWS_RETENTION_HOURS } from "@/lib/news-config";
 import { backfillArticleVideos, resolveArticleVideo } from "@/lib/news-video";
+import { getCategoryFallbackImageUrl } from "@/lib/category-images";
+
+const RSS_SYNC_CONCURRENCY = 4;
 
 function normalizeHashText(value: string): string {
   return value
@@ -222,38 +224,41 @@ export async function syncAllFeeds(): Promise<{
     VALUES (?, datetime('now'), 'running')
   `).run(syncId);
 
-  for (const source of RSS_SOURCES) {
-    if (!source.active) continue;
+  const activeSources = RSS_SOURCES.filter((source) => source.active);
+  let nextSourceIndex = 0;
+  const workerCount = Math.min(RSS_SYNC_CONCURRENCY, activeSources.length);
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (nextSourceIndex < activeSources.length) {
+      const source = activeSources[nextSourceIndex++];
+      const sourceSyncId = generateId();
+      const logStmt = db.prepare(`
+        INSERT INTO sync_logs (id, source_id, source_name, started_at, status)
+        VALUES (?, ?, ?, datetime('now'), 'running')
+      `);
+      logStmt.run(sourceSyncId, source.id, source.name);
 
-    const sourceSyncId = generateId();
-    const logStmt = db.prepare(`
-      INSERT INTO sync_logs (id, source_id, source_name, started_at, status)
-      VALUES (?, ?, ?, datetime('now'), 'running')
-    `);
-    logStmt.run(sourceSyncId, source.id, source.name);
+      try {
+        const result = await fetchFeed(source);
+        totalFound += result.articles.length;
 
-    try {
-      const result = await fetchFeed(source);
-      totalFound += result.articles.length;
+        if (result.error) {
+          updateSourceStatus(db, source.id, false, result.error);
+          db.prepare("INSERT INTO feed_errors (id, source_id, source_name, error_type, error_message) VALUES (?, ?, ?, 'fetch_error', ?)")
+            .run(generateId(), source.id, source.name, result.error);
+          db.prepare("UPDATE sync_logs SET completed_at = datetime('now'), status = 'error', articles_found = ?, error = ? WHERE id = ?")
+            .run(result.articles.length, result.error, sourceSyncId);
+          sourceResults.push({
+            source: source.name, status: "error",
+            articlesNew: 0, articlesFound: result.articles.length, articlesFiltered: 0, error: result.error,
+          });
+          continue;
+        }
 
-      if (result.error) {
-        updateSourceStatus(db, source.id, false, result.error);
-        db.prepare("INSERT INTO feed_errors (id, source_id, source_name, error_type, error_message) VALUES (?, ?, ?, 'fetch_error', ?)")
-          .run(generateId(), source.id, source.name, result.error);
-        db.prepare("UPDATE sync_logs SET completed_at = datetime('now'), status = 'error', articles_found = ?, error = ? WHERE id = ?")
-          .run(result.articles.length, result.error, sourceSyncId);
-        sourceResults.push({
-          source: source.name, status: "error",
-          articlesNew: 0, articlesFound: result.articles.length, articlesFiltered: 0, error: result.error,
-        });
-        continue;
-      }
+        let articlesNew = 0;
+        let articlesDuplicate = 0;
+        let articlesFiltered = 0;
 
-      let articlesNew = 0;
-      let articlesDuplicate = 0;
-      let articlesFiltered = 0;
-
-      for (const article of result.articles) {
+        for (const article of result.articles) {
         if (!article.title) continue;
 
         const filterResult = filterTamilNadu({
@@ -311,15 +316,12 @@ export async function syncAllFeeds(): Promise<{
           retention = "recent";
         }
 
-        const aiImage = generateArticleImage({
-          headline: article.title,
-          category: filterResult.category,
-          summary: article.summary,
-          district: filterResult.district || undefined,
-          keywords: article.categories,
-        });
-        const finalImageUrl = article.imageUrl || aiImage.url;
-        const imageSource = article.imageUrl ? "source" : "ai";
+        const aiImage = {
+          url: getCategoryFallbackImageUrl(filterResult.category, true),
+          prompt: `category-ai-image: ${filterResult.category}`,
+        };
+        const finalImageUrl = aiImage.url;
+        const imageSource = "ai";
 
         console.log(`[IMAGE] STORE id=${"(pending)"} title="${article.title.slice(0, 60)}" category=${filterResult.category} image_source=${imageSource} source_url=${article.imageUrl ? article.imageUrl.slice(0, 60) : "none"} ai_url=${aiImage.url.slice(0, 60)}`);
 
@@ -374,27 +376,29 @@ export async function syncAllFeeds(): Promise<{
         }
       }
 
-      updateSourceStatus(db, source.id, true);
-      db.prepare(`
-        UPDATE sync_logs SET completed_at = datetime('now'), status = 'success',
-        articles_found = ?, articles_new = ?, articles_duplicate = ? WHERE id = ?
-      `).run(result.articles.length, articlesNew, articlesDuplicate, sourceSyncId);
+        updateSourceStatus(db, source.id, true);
+        db.prepare(`
+          UPDATE sync_logs SET completed_at = datetime('now'), status = 'success',
+          articles_found = ?, articles_new = ?, articles_duplicate = ? WHERE id = ?
+        `).run(result.articles.length, articlesNew, articlesDuplicate, sourceSyncId);
 
-      sourceResults.push({
-        source: source.name, status: "success",
-        articlesNew, articlesFound: result.articles.length, articlesFiltered, error: null,
-      });
-    } catch (err: unknown) {
-      const message = errorMessage(err);
-      updateSourceStatus(db, source.id, false, message);
-      db.prepare("UPDATE sync_logs SET completed_at = datetime('now'), status = 'error', error = ? WHERE id = ?")
-        .run(message, sourceSyncId);
-      sourceResults.push({
-        source: source.name, status: "error",
-        articlesNew: 0, articlesFound: 0, articlesFiltered: 0, error: message,
-      });
+        sourceResults.push({
+          source: source.name, status: "success",
+          articlesNew, articlesFound: result.articles.length, articlesFiltered, error: null,
+        });
+      } catch (err: unknown) {
+        const message = errorMessage(err);
+        updateSourceStatus(db, source.id, false, message);
+        db.prepare("UPDATE sync_logs SET completed_at = datetime('now'), status = 'error', error = ? WHERE id = ?")
+          .run(message, sourceSyncId);
+        sourceResults.push({
+          source: source.name, status: "error",
+          articlesNew: 0, articlesFound: 0, articlesFiltered: 0, error: message,
+        });
+      }
     }
-  }
+  });
+  await Promise.all(workers);
 
   const videosBackfilled = backfillArticleVideos(db);
   const finalCleanup = runRetention(db);
@@ -408,9 +412,14 @@ export async function syncAllFeeds(): Promise<{
     articles_found = ?, articles_new = ? WHERE id = ? AND status = 'running'
   `).run(totalFound, totalNew, syncId);
 
-  const sqlBad = `SELECT COUNT(*) as count FROM articles WHERE value IS NULL OR value = '' OR value = 'null' OR value = 'undefined'`;
-  const missingImage = db.prepare(sqlBad.replace('value', 'image_url')).get() as { count: number };
-  const missingAiImage = db.prepare(sqlBad.replace('value', 'ai_image_url')).get() as { count: number };
+  const countMissingImageColumn = (column: "image_url" | "ai_image_url"): { count: number } => {
+    return db.prepare(`
+      SELECT COUNT(*) as count FROM articles
+      WHERE ${column} IS NULL OR ${column} = '' OR ${column} = 'null' OR ${column} = 'undefined'
+    `).get() as { count: number };
+  };
+  const missingImage = countMissingImageColumn("image_url");
+  const missingAiImage = countMissingImageColumn("ai_image_url");
   const totalArticles = db.prepare("SELECT COUNT(*) as count FROM articles").get() as { count: number };
   console.log(`[IMAGE] VERIFY total=${totalArticles.count} bad_image=${missingImage.count} bad_ai_image=${missingAiImage.count}`);
 
@@ -492,15 +501,12 @@ export async function syncSingleSource(source: RSSSourceConfig): Promise<{
       }
       const retention = hoursAgo <= 24 ? "breaking" : "recent";
 
-      const aiImage = generateArticleImage({
-        headline: article.title,
-        category: filterResult.category,
-        summary: article.summary,
-        district: filterResult.district || undefined,
-        keywords: article.categories,
-      });
-      const finalImageUrl = article.imageUrl || aiImage.url;
-      const imageSource = article.imageUrl ? "source" : "ai";
+      const aiImage = {
+        url: getCategoryFallbackImageUrl(filterResult.category, true),
+        prompt: `category-ai-image: ${filterResult.category}`,
+      };
+      const finalImageUrl = aiImage.url;
+      const imageSource = "ai";
 
       console.log(`[IMAGE] STORE id=${"(pending)"} title="${article.title.slice(0, 60)}" category=${filterResult.category} image_source=${imageSource} source_url=${article.imageUrl ? article.imageUrl.slice(0, 60) : "none"} ai_url=${aiImage.url.slice(0, 60)}`);
 

@@ -218,6 +218,22 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
   ],
 };
 
+const SOURCE_CATEGORY_MAP: Record<string, string> = {
+  politics: "தமிழ்நாடு அரசியல்",
+  government: "தமிழ்நாடு அரசு",
+  education: "தமிழ்நாடு கல்வி",
+  business: "தமிழ்நாடு வணிகம்",
+  technology: "தமிழ்நாடு தொழில்நுட்பம்",
+  sports: "தமிழ்நாடு விளையாட்டு",
+  accident: "தமிழ்நாடு விபத்து",
+  crime: "தமிழ்நாடு குற்றம்",
+  weather: "தமிழ்நாடு வானிலை",
+  transport: "தமிழ்நாடு போக்குவரத்து",
+  railway: "தமிழ்நாடு போக்குவரத்து",
+  agriculture: "தமிழ்நாடு வேளாண்மை",
+  local: "தமிழ்நாடு உள்ளூர்",
+};
+
 const FATALITY_KEYWORDS = [
   "உயிரிழப்பு", "உயிரிழந்த", "உயிரிழந்தார்", "உயிரிழந்தனர்",
   "பலி", "பலியான", "பலியானார்", "பலியானார்கள்", "பலி எண்ணிக்கை",
@@ -438,6 +454,11 @@ function scoreCategoryKeywords(text: string): { category: string; score: number 
   return { category: bestCategory, score: bestScore };
 }
 
+function categoryFromSource(value?: string): string | null {
+  const normalized = normalize(value || "");
+  return SOURCE_CATEGORY_MAP[normalized] || null;
+}
+
 export function filterTamilNadu(article: {
   title: string;
   summary: string;
@@ -460,7 +481,9 @@ export function filterTamilNadu(article: {
   }
 
   if (district || tnScore >= STRICT_TN_THRESHOLD) {
-    const category = detectCategory(article.title, article.summary, article.content);
+    const detectedCategory = detectCategory(article.title, article.summary, article.content);
+    const sourceCategory = categoryFromSource(article.category);
+    const category = sourceCategory && detectedCategory === "தமிழ்நாடு உள்ளூர்" ? sourceCategory : detectedCategory;
     return { relevant: true, category, district, score: tnScore, reason: "Strict Tamil Nadu relevance confirmed" };
   }
 

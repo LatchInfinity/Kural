@@ -5,8 +5,8 @@ import { NEWS_RETENTION_MS } from "@/lib/news-config";
 import { containsEntertainmentContent, isBlockedNewsCategory, isDisplayableNewsCategory } from "@/lib/news-policy";
 import { resolveNewsAnimationScene } from "@/lib/news-animation";
 import { resolveArticleVideo } from "@/lib/news-video";
-import { generateArticleImage } from "@/lib/rss/image-generator";
 import { detectCategory } from "@/lib/rss/tn-filter";
+import { getCategoryFallbackImageUrl } from "@/lib/category-images";
 
 const DB_DIR = process.env.KURAL_DB_DIR
   || (process.env.VERCEL ? path.join("/tmp", "kural-data") : path.join(process.cwd(), "data"));
@@ -520,6 +520,8 @@ export function repairStoredArticleClassifications(database: Database.Database =
   const update = database.prepare(`
     UPDATE articles
     SET category = ?,
+        image_url = ?,
+        image_source = 'ai',
         ai_image_url = ?,
         ai_image_prompt = ?,
         ai_image_generated_at = ?,
@@ -550,13 +552,10 @@ export function repairStoredArticleClassifications(database: Database.Database =
       const keywords = splitArticleKeywords(row);
       const refreshImage = shouldRefreshArticleImage(row, nextCategory);
       const nextImage = refreshImage
-        ? generateArticleImage({
-            headline: headline || title,
-            category: nextCategory,
-            summary,
-            district: row.district || undefined,
-            keywords,
-          })
+        ? {
+            url: getCategoryFallbackImageUrl(nextCategory, true),
+            prompt: `category-ai-image: ${nextCategory}`,
+          }
         : null;
       const nextAiImageUrl = nextImage?.url || row.ai_image_url || "";
       const nextAiImagePrompt = nextImage?.prompt || row.ai_image_prompt || "";
@@ -590,6 +589,7 @@ export function repairStoredArticleClassifications(database: Database.Database =
 
       update.run(
         nextCategory,
+        nextAiImageUrl,
         nextAiImageUrl,
         nextAiImagePrompt,
         nextAiImageGeneratedAt,

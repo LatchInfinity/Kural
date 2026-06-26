@@ -8,6 +8,7 @@ import type { QueueItem } from "@/lib/audio-engine";
 import { useUserStore } from "@/store/user-store";
 import AuthGuard from "@/components/auth/auth-guard";
 import Header from "@/components/header";
+import MobileHome from "@/components/mobile/MobileHome";
 import NewsCard, { type NewsCardLanguage } from "@/components/news-card";
 import ToastContainer from "@/components/toast";
 import NewspaperView from "@/components/newspaper/newspaper-intro";
@@ -126,6 +127,11 @@ export default function HomePage() {
 
   return (
     <AuthGuard>
+      <div className="mobile-only">
+        <MobileHome />
+      </div>
+
+      <div className="desktop-only">
       <Header />
 
       {activeNav === "newspaper-view" && <NewspaperView />}
@@ -239,6 +245,7 @@ export default function HomePage() {
           </div>
         </main>
       )}
+      </div>
 
       <ToastContainer />
     </AuthGuard>

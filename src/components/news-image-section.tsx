@@ -255,7 +255,6 @@ export default function NewsImageSection({
     return SCENES.find((item) => item.key === key) || DEFAULT_SCENE;
   }, [animationScene, category, headline, summary, source]);
 
-  const [imageError, setImageError] = useState(false);
   const publishedLabel = useMemo(() => {
     const date = new Date(publishedAt);
     if (Number.isNaN(date.getTime())) return publishedAt;
@@ -266,9 +265,29 @@ export default function NewsImageSection({
       minute: "2-digit",
     }).format(date);
   }, [publishedAt]);
-  const posterUrl = aiVideoUrl ? "" : videoThumbnail || aiImageUrl || imageUrl;
+  const imageCandidates = useMemo(() => {
+    const seen = new Set<string>();
+    return [aiImageUrl, videoThumbnail, imageUrl, getCategoryFallbackImageUrl(category, true)]
+      .map((value) => value.trim())
+      .filter((value) => {
+        if (!value || seen.has(value)) return false;
+        seen.add(value);
+        return true;
+      });
+  }, [aiImageUrl, category, imageUrl, videoThumbnail]);
+  const imageCandidatesKey = imageCandidates.join("|");
+  const [imageIndex, setImageIndex] = useState(0);
+  const posterUrl = imageCandidates[imageIndex] || "";
   const webmVideoUrl = aiVideoUrl.replace(/\.mp4($|\?)/, ".webm$1");
   const normalizedVideoDuration = Math.max(1, Math.min(10, videoDuration || VIDEO_DURATION_SECONDS));
+
+  useEffect(() => {
+    setImageIndex(0);
+  }, [imageCandidatesKey]);
+
+  const handleImageError = () => {
+    setImageIndex((current) => current + 1);
+  };
 
   useEffect(() => {
     if (!aiVideoUrl) return;
@@ -361,6 +380,7 @@ export default function NewsImageSection({
               aria-hidden="true"
               loading="lazy"
               className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${canPlayVideo ? "opacity-0" : "opacity-100"}`}
+              onError={handleImageError}
             />
           ) : (
             <SceneMotion sceneKey={scene.key} isCurrentlyPlaying={isCurrentlyPlaying} />
@@ -391,16 +411,14 @@ export default function NewsImageSection({
           <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-black/5" aria-hidden="true" />
         </>
       ) : (() => {
-        const articleImage = imageUrl || aiImageUrl || getCategoryFallbackImageUrl(category);
-        const showImage = articleImage && !imageError;
-        return showImage ? (
+        return posterUrl ? (
           <img
-            src={articleImage}
+            src={posterUrl}
             alt=""
             aria-hidden="true"
             loading="lazy"
             className="absolute inset-0 h-full w-full object-cover"
-            onError={() => setImageError(true)}
+            onError={handleImageError}
           />
         ) : (
           <SceneMotion sceneKey={scene.key} isCurrentlyPlaying={isCurrentlyPlaying} />

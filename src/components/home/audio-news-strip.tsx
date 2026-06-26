@@ -84,7 +84,6 @@ export default function AudioNewsStrip() {
           className="flex gap-4 overflow-x-auto scrollbar-none -mx-4 px-4 pb-2"
         >
           {recent.map((item) => {
-            const thumbnail = item.aiImageUrl || item.imageUrl || getCategoryFallbackImageUrl(item.category);
             const isCurrent = currentTrack?.id === item.id;
             return (
               <div
@@ -93,7 +92,9 @@ export default function AudioNewsStrip() {
               >
                 <div className="relative aspect-[16/9] overflow-hidden bg-surface-secondary">
                   <SafeImage
-                    src={thumbnail}
+                    src={item.aiImageUrl}
+                    aiSrc={item.imageUrl}
+                    fallbackSrc={getCategoryFallbackImageUrl(item.category, true)}
                     alt=""
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     fallback={<div className="w-full h-full flex items-center justify-center text-3xl text-foreground-secondary/20">🎧</div>}
