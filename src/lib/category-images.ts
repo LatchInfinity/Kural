@@ -1,3 +1,5 @@
+import { localAiImageUrl } from "@/lib/ai-image-url";
+
 const CATEGORY_EMOJIS: Record<string, string> = {
   "Tamil Nadu": "🌴",
   "Chennai": "🌴",
@@ -96,59 +98,66 @@ export function getCategoryIconPath(category: string): string {
   return "/icons/categories/default.svg";
 }
 
+const FALLBACK_STYLE =
+  "Photorealistic news photography, newspaper editorial style, highly detailed, realistic lighting, natural colors, landscape orientation, 16:9 wide composition, Tamil Nadu context";
+
+const FALLBACK_NEGATIVE =
+  "Negative prompt: no close-up face, no portrait, no selfie, no celebrity, no politician face, no floating heads, no anime, no cartoon, no illustration, no AI art style, no watermark, no text, no typography, no logo, no poster design, no recognizable people";
+
 const CATEGORY_FALLBACK_PROMPTS: Record<string, string> = {
-  "Tamil Nadu": "Wide-angle newspaper photograph of Tamil Nadu scenic landscape natural beauty",
-  "Chennai": "Wide-angle newspaper photograph of Chennai city skyline Marina beach",
-  "Madurai": "Wide-angle newspaper photograph of Madurai Meenakshi temple architecture",
-  "Coimbatore": "Wide-angle newspaper photograph of Coimbatore city urban landscape",
-  "Tiruchirappalli": "Wide-angle newspaper photograph of Tiruchirappalli rockfort temple",
-  "Salem": "Wide-angle newspaper photograph of Salem steel city landscape",
-  "Tirunelveli": "Wide-angle newspaper photograph of Tirunelveli cityscape",
-  "Erode": "Wide-angle newspaper photograph of Erode agriculture farmlands",
-  "தமிழ்நாடு அரசு": "Wide-angle newspaper photograph of Tamil Nadu government Secretariat building Chennai",
-  "Government": "Wide-angle newspaper photograph of Tamil Nadu government Secretariat building Chennai",
-  "தமிழ்நாடு அரசியல்": "Wide-angle newspaper photograph of Tamil Nadu legislative assembly building exterior",
-  "Politics": "Wide-angle newspaper photograph of Tamil Nadu legislative assembly building exterior",
-  "தமிழ்நாடு வணிகம்": "Wide-angle newspaper photograph of Tamil Nadu business factory industry",
-  "Business": "Wide-angle newspaper photograph of Tamil Nadu business factory industry",
-  "தமிழ்நாடு விளையாட்டு": "Wide-angle newspaper photograph of Tamil Nadu cricket stadium",
-  "Sports": "Wide-angle newspaper photograph of Tamil Nadu cricket stadium",
-  "Chess": "Wide-angle newspaper photograph of chess board game competition",
-  "தமிழ்நாடு தொழில்நுட்பம்": "Wide-angle newspaper photograph of Tamil Nadu IT park technology",
-  "Technology": "Wide-angle newspaper photograph of Tamil Nadu IT park technology",
-  "தமிழ்நாடு கல்வி": "Wide-angle newspaper photograph of Tamil Nadu university campus education",
-  "Education": "Wide-angle newspaper photograph of Tamil Nadu university campus education",
-  "Health": "Wide-angle newspaper photograph of hospital medical building exterior",
-  "தமிழ்நாடு வேளாண்மை": "Wide-angle newspaper photograph of Tamil Nadu paddy fields agriculture",
-  "Agriculture": "Wide-angle newspaper photograph of Tamil Nadu paddy fields agriculture",
-  "தமிழ்நாடு வானிலை": "Wide-angle newspaper photograph of Tamil Nadu rain cyclone storm clouds",
-  "Weather": "Wide-angle newspaper photograph of Tamil Nadu rain cyclone storm clouds",
-  "தமிழ்நாடு விபத்து": "Wide-angle newspaper photograph of Tamil Nadu road accident scene",
-  "Accident": "Wide-angle newspaper photograph of Tamil Nadu road accident scene",
-  "தமிழ்நாடு குற்றம்": "Wide-angle newspaper photograph of Tamil Nadu police station exterior",
-  "Crime": "Wide-angle newspaper photograph of Tamil Nadu police station exterior",
-  "தமிழ்நாடு போக்குவரத்து": "Wide-angle newspaper photograph of Tamil Nadu bus railway station transport",
-  "Transport": "Wide-angle newspaper photograph of Tamil Nadu bus railway station transport",
-  "தமிழ்நாடு உள்ளூர்": "Wide-angle newspaper photograph of Tamil Nadu local town market daily life",
-  "Local": "Wide-angle newspaper photograph of Tamil Nadu local town market daily life",
-  "Temple": "Wide-angle newspaper photograph of ancient Tamil temple architecture",
-  "Environment": "Wide-angle newspaper photograph of forest nature green landscape Tamil Nadu",
-  "Electricity": "Wide-angle newspaper photograph of electricity power lines grid Tamil Nadu",
-  "Power Cut": "Wide-angle newspaper photograph of power transformer electrical infrastructure",
-  "Railway": "Wide-angle newspaper photograph of railway station train tracks Tamil Nadu",
-  "Airport": "Wide-angle newspaper photograph of airport terminal building Tamil Nadu",
-  "Infrastructure": "Wide-angle newspaper photograph of bridge road construction Tamil Nadu",
-  "Tourism": "Wide-angle newspaper photograph of tourist heritage destination Tamil Nadu",
-  "Court": "Wide-angle newspaper photograph of court of law justice building Tamil Nadu",
-  "Culture": "Wide-angle newspaper photograph of Tamil cultural heritage festival",
-  "Spiritual": "Wide-angle newspaper photograph of spiritual temple religious site Tamil Nadu",
-  "World": "Wide-angle newspaper photograph of global international news scene",
-  "India": "Wide-angle newspaper photograph of Indian parliament government building",
+  "Tamil Nadu": "district public street scene with civic activity, markets, roads, and local buildings, people only as distant background silhouettes",
+  "Chennai": "Chennai city road and public infrastructure near Marina beach, realistic daylight, no readable signs",
+  "Madurai": "Madurai district landmark street and temple architecture context, wide editorial frame, no close-up faces",
+  "Coimbatore": "Coimbatore industrial city road, office buildings, and transport infrastructure, wide editorial frame",
+  "Tiruchirappalli": "Tiruchirappalli city landmark and public street infrastructure, realistic daylight, no portraits",
+  "Salem": "Salem industrial and agricultural district landscape, roads and public buildings, no close-up people",
+  "Tirunelveli": "Tirunelveli district street and public buildings, wide news photograph, no portraits",
+  "Erode": "Erode agriculture market and farmlands, produce crates and public activity, faces not visible",
+  "தமிழ்நாடு அரசு": "government offices, public service counters, administrative buildings, and official inspection activity, no politician portraits",
+  "Government": "government offices, public service counters, administrative buildings, and official inspection activity, no politician portraits",
+  "தமிழ்நாடு அரசியல்": "government building, assembly session atmosphere, public meeting stage, or policy announcement setup, never politician portraits",
+  "Politics": "government building, assembly session atmosphere, public meeting stage, or policy announcement setup, never politician portraits",
+  "தமிழ்நாடு வணிகம்": "factory, industrial zone, office complex, manufacturing activity, investment project site, no businessman faces",
+  "Business": "factory, industrial zone, office complex, manufacturing activity, investment project site, no businessman faces",
+  "தமிழ்நாடு விளையாட்டு": "stadium match action, sports equipment, crowd atmosphere, wide angle, avoid recognizable athletes",
+  "Sports": "stadium match action, sports equipment, crowd atmosphere, wide angle, avoid recognizable athletes",
+  "Chess": "chess tournament hall with boards and clocks, players only as distant silhouettes, no faces",
+  "தமிழ்நாடு தொழில்நுட்பம்": "IT park, computer lab, data center, and digital infrastructure, screens blurred without readable text",
+  "Technology": "IT park, computer lab, data center, and digital infrastructure, screens blurred without readable text",
+  "தமிழ்நாடு கல்வி": "classroom, students studying from behind, school building, college campus, or exam hall, no teacher portraits",
+  "Education": "classroom, students studying from behind, school building, college campus, or exam hall, no teacher portraits",
+  "Health": "government hospital exterior, health camp, ambulance bay, and medical equipment, no doctor or patient portraits",
+  "தமிழ்நாடு வேளாண்மை": "paddy fields, irrigation channels, farming equipment, crop rows, workers only as distant silhouettes",
+  "Agriculture": "paddy fields, irrigation channels, farming equipment, crop rows, workers only as distant silhouettes",
+  "தமிழ்நாடு வானிலை": "rain, storm clouds, flooding, sunshine, heatwave, and weather impact on city roads, no random people",
+  "Weather": "rain, storm clouds, flooding, sunshine, heatwave, and weather impact on city roads, no random people",
+  "தமிழ்நாடு விபத்து": "road accident response, ambulance, traffic cones, police vehicles, safety barriers, no victims visible",
+  "Accident": "road accident response, ambulance, traffic cones, police vehicles, safety barriers, no victims visible",
+  "தமிழ்நாடு குற்றம்": "police vehicles, investigation scene, forensic markers, court building, and security activity, no victim faces",
+  "Crime": "police vehicles, investigation scene, forensic markers, court building, and security activity, no victim faces",
+  "தமிழ்நாடு போக்குவரத்து": "bus, train, metro, railway station, highway, flyover, traffic infrastructure, no driver portraits",
+  "Transport": "bus, train, metro, railway station, highway, flyover, traffic infrastructure, no driver portraits",
+  "தமிழ்நாடு உள்ளூர்": "district landmarks, markets, streets, public events, and community activity, avoid random faces",
+  "Local": "district landmarks, markets, streets, public events, and community activity, avoid random faces",
+  "Temple": "ancient Tamil temple architecture and public heritage site, wide editorial frame, no close-up devotees",
+  "Environment": "forest, river, pollution control equipment, and conservation activity in Tamil Nadu, no portraits",
+  "Electricity": "electricity power lines, transformer, substation, and service vehicles, workers only as distant silhouettes",
+  "Power Cut": "power transformer, electrical infrastructure, repair vehicles, and street lighting context, no close-up workers",
+  "Railway": "railway station, train tracks, platform infrastructure, commuters only as distant silhouettes",
+  "Airport": "airport terminal building, runway service vehicles, and transport infrastructure, no passenger close-ups",
+  "Infrastructure": "bridge, road construction, flyover, highway project, engineering activity, no worker portraits",
+  "Tourism": "Tamil Nadu heritage destination, public streets, and tourist infrastructure, no close-up faces",
+  "Court": "court building exterior, police vehicle, legal institution context, no accused or victim faces",
+  "Culture": "Tamil cultural public event from a wide editorial angle, crowd shown from behind",
+  "Spiritual": "temple religious site and public heritage architecture, wide editorial frame, no close-up faces",
+  "World": "international news scene with government building or public infrastructure, no portraits",
+  "India": "Indian government building and public administrative infrastructure, no politician portraits",
 };
 
 export function getCategoryFallbackImageUrl(category: string, skipLog?: boolean): string {
   if (!category) {
-    return `https://image.pollinations.ai/prompt/${encodeURIComponent("NO HUMAN FACES. SCENE ONLY. Wide-angle newspaper photograph: Tamil Nadu news landscape")}?width=800&height=450&nofeed=true`;
+    const defaultPrompt = `${FALLBACK_STYLE}. district public street scene with civic activity and local buildings. ${FALLBACK_NEGATIVE}`;
+    return localAiImageUrl(defaultPrompt, { seedSource: "category-default" });
   }
   const prompt = CATEGORY_FALLBACK_PROMPTS[category];
   if (!prompt) {
@@ -158,10 +167,10 @@ export function getCategoryFallbackImageUrl(category: string, skipLog?: boolean)
     );
     if (matched) return getCategoryFallbackImageUrl(matched, true);
   }
-  const resolvedPrompt = prompt || "NO HUMAN FACES. SCENE ONLY. Wide-angle newspaper photograph: Tamil Nadu news landscape";
-  const shortPrompt = `NO HUMAN FACES. SCENE ONLY. ${resolvedPrompt}`;
-  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(shortPrompt)}?width=800&height=450&nofeed=true`;
-  if (!skipLog) console.log(`[IMAGE] FALLBACK category="${category}" prompt="${shortPrompt.slice(0, 80)}" url=${url}`);
+  const resolvedPrompt = prompt || "district public street scene with civic activity and local buildings";
+  const shortPrompt = `${FALLBACK_STYLE}. Scene: ${resolvedPrompt}. ${FALLBACK_NEGATIVE}`;
+  const url = localAiImageUrl(shortPrompt, { seedSource: category });
+  if (!skipLog) console.log(`[IMAGE FALLBACK] category="${category}" prompt="${shortPrompt.slice(0, 180)}" url=${url.slice(0, 120)}`);
   return url;
 }
 

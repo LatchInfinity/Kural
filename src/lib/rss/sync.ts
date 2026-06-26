@@ -6,7 +6,8 @@ import { filterTamilNadu } from "./tn-filter";
 import { sseManager } from "@/lib/sse";
 import { NEWS_RETENTION_HOURS } from "@/lib/news-config";
 import { backfillArticleVideos, resolveArticleVideo } from "@/lib/news-video";
-import { getCategoryFallbackImageUrl } from "@/lib/category-images";
+import { getArticleTopicImage } from "@/lib/ai-image-url";
+import { ensureCachedAiImage } from "@/lib/ai-image-cache";
 
 const RSS_SYNC_CONCURRENCY = 4;
 
@@ -316,9 +317,24 @@ export async function syncAllFeeds(): Promise<{
           retention = "recent";
         }
 
+        const topicImage = getArticleTopicImage({
+          headline: article.title,
+          title: article.title,
+          summary: article.summary,
+          content: article.content,
+          category: filterResult.category,
+          district: filterResult.district,
+          source: source.name,
+          keywords: article.categories,
+        });
+        const warmedImage = await ensureCachedAiImage({
+          topicKey: topicImage.topicKey,
+          prompt: topicImage.prompt,
+        });
+        console.log(`[IMAGE] TOPIC_CACHE topic=${topicImage.topicKey} cached=${warmedImage.cached} generated=${warmedImage.generated} error=${warmedImage.error || "none"}`);
         const aiImage = {
-          url: getCategoryFallbackImageUrl(filterResult.category, true),
-          prompt: `category-ai-image: ${filterResult.category}`,
+          url: topicImage.url,
+          prompt: topicImage.prompt,
         };
         const finalImageUrl = aiImage.url;
         const imageSource = "ai";
@@ -501,9 +517,24 @@ export async function syncSingleSource(source: RSSSourceConfig): Promise<{
       }
       const retention = hoursAgo <= 24 ? "breaking" : "recent";
 
+      const topicImage = getArticleTopicImage({
+        headline: article.title,
+        title: article.title,
+        summary: article.summary,
+        content: article.content,
+        category: filterResult.category,
+        district: filterResult.district,
+        source: source.name,
+        keywords: article.categories,
+      });
+      const warmedImage = await ensureCachedAiImage({
+        topicKey: topicImage.topicKey,
+        prompt: topicImage.prompt,
+      });
+      console.log(`[IMAGE] TOPIC_CACHE topic=${topicImage.topicKey} cached=${warmedImage.cached} generated=${warmedImage.generated} error=${warmedImage.error || "none"}`);
       const aiImage = {
-        url: getCategoryFallbackImageUrl(filterResult.category, true),
-        prompt: `category-ai-image: ${filterResult.category}`,
+        url: topicImage.url,
+        prompt: topicImage.prompt,
       };
       const finalImageUrl = aiImage.url;
       const imageSource = "ai";

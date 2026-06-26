@@ -34,17 +34,23 @@ interface ArticleSceneRow {
 }
 
 export async function POST(request: NextRequest) {
+  let body: AnimationSceneBody = {};
   try {
-    const body = await request.json().catch(() => ({})) as AnimationSceneBody;
+    body = await request.json().catch(() => ({})) as AnimationSceneBody;
     const newsId = body.newsId || body.id || "";
     const db = getDbInstance();
-    const row = newsId
-      ? db.prepare(`
-          SELECT id, title, headline, summary, content, source, category, retention, animation_scene, animation_embed_url
-          FROM articles
-          WHERE id = ?
-        `).get(newsId) as ArticleSceneRow | undefined
-      : undefined;
+    let row: ArticleSceneRow | undefined;
+    if (newsId) {
+      try {
+        row = db.prepare(`
+            SELECT id, title, headline, summary, content, source, category, retention, animation_scene, animation_embed_url
+            FROM articles
+            WHERE id = ?
+          `).get(newsId) as ArticleSceneRow | undefined;
+      } catch (error) {
+        console.warn("[ANIMATION SCENE] DB_READ_FAILED", error instanceof Error ? error.message : String(error));
+      }
+    }
 
     const contentScene = resolveNewsAnimationScene({
       category: row?.category ?? body.category,
@@ -63,8 +69,12 @@ export async function POST(request: NextRequest) {
       !(row.animation_scene === "breaking" && contentScene !== "breaking")
     ) {
       if (row.id && row.animation_embed_url) {
-        db.prepare("UPDATE articles SET animation_embed_url = '', updated_at = datetime('now') WHERE id = ?")
-          .run(row.id);
+        try {
+          db.prepare("UPDATE articles SET animation_embed_url = '', updated_at = datetime('now') WHERE id = ?")
+            .run(row.id);
+        } catch (error) {
+          console.warn("[ANIMATION SCENE] DB_UPDATE_FAILED", error instanceof Error ? error.message : String(error));
+        }
       }
       return NextResponse.json({
         scene: row.animation_scene,
@@ -88,15 +98,28 @@ export async function POST(request: NextRequest) {
     });
 
     if (row?.id) {
-      db.prepare("UPDATE articles SET animation_scene = ?, animation_embed_url = ?, updated_at = datetime('now') WHERE id = ?")
-        .run(scene, "", row.id);
+      try {
+        db.prepare("UPDATE articles SET animation_scene = ?, animation_embed_url = ?, updated_at = datetime('now') WHERE id = ?")
+          .run(scene, "", row.id);
+      } catch (error) {
+        console.warn("[ANIMATION SCENE] DB_UPDATE_FAILED", error instanceof Error ? error.message : String(error));
+      }
     }
 
     return NextResponse.json({ scene, embedUrl: "", cached: false });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
-      { status: 500 },
-    );
+    const scene = resolveNewsAnimationScene({
+      animationScene: body.animationScene,
+      category: body.category,
+      title: body.title,
+      headline: body.headline,
+      summary: body.summary,
+      content: body.content,
+      source: body.source,
+      retention: body.retention,
+      isBreaking: body.isBreaking,
+    });
+    console.warn("[ANIMATION SCENE] FALLBACK", error instanceof Error ? error.message : String(error));
+    return NextResponse.json({ scene, embedUrl: "", cached: false, fallback: true });
   }
 }

@@ -15,7 +15,7 @@ import { useAppStore } from "@/store/app-store";
 import { useUserStore } from "@/store/user-store";
 import type { ReactionType } from "@/types";
 
-const SPEEDS = [0.85, 1, 1.12, 1.2];
+const SPEEDS = [0.85, 1, 1.25, 1.3];
 const MOBILE_SPEEDS = [1, 1.25, 1.5] as const;
 
 function formatTime(seconds: number): string {

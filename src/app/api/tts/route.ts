@@ -104,12 +104,12 @@ function envSarvamSpeaker(language: AudioLang, gender: VoiceGender): string {
 }
 
 function clampSpeed(speed: number | undefined): number {
-  if (typeof speed !== "number" || Number.isNaN(speed)) return 1;
-  return Math.max(0.7, Math.min(1.2, speed));
+  if (typeof speed !== "number" || Number.isNaN(speed)) return 1.25;
+  return Math.max(0.7, Math.min(1.25, speed));
 }
 
 function clampSarvamPace(speed: number | undefined): number {
-  if (typeof speed !== "number" || Number.isNaN(speed)) return 1.12;
+  if (typeof speed !== "number" || Number.isNaN(speed)) return 1.25;
   return Math.max(0.5, Math.min(2, speed));
 }
 

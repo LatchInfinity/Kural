@@ -80,7 +80,7 @@ const initialState: AudioStoreState = {
   currentIndex: 0,
   language: "ta",
   volume: 0.8,
-  speed: 1,
+  speed: 1.25,
   voice: "",
   voiceGender: "female",
   audioProvider: "none",

@@ -1,7 +1,7 @@
 import type { NewsItem } from "@/types";
 import { buildEnglishSummary, buildNewsContent, buildNewsSummary, cleanNewsTitle } from "@/lib/news-text";
 import { resolveArticleVideo } from "@/lib/news-video";
-import { getCategoryFallbackImageUrl } from "@/lib/category-images";
+import { getArticleTopicImage } from "@/lib/ai-image-url";
 
 export interface ArticleDbRow {
   id: string;
@@ -67,7 +67,16 @@ export function mapArticleRow(
   const summary = buildNewsSummary(row.summary || "", content, headline);
   const category = (row.category || "தமிழ்நாடு உள்ளூர்") as NewsItem["category"];
   const retention = row.retention || "recent";
-  const categoryAiImageUrl = getCategoryFallbackImageUrl(category, true);
+  const topicImage = getArticleTopicImage({
+    headline,
+    title,
+    summary,
+    content,
+    category,
+    district: row.district || "",
+    source: row.source,
+    keywords: [row.search_keywords || "", row.tags || ""],
+  });
   const englishSummary = buildEnglishSummary({ headline, summary, content, category });
   const resolvedVideo = resolveArticleVideo({
     id: row.id,
@@ -78,10 +87,10 @@ export function mapArticleRow(
     category,
     district: row.district || "",
     keywords: [row.search_keywords || "", row.tags || ""],
-    thumbnailUrl: categoryAiImageUrl,
+    thumbnailUrl: topicImage.url,
   });
   const aiVideoUrl = row.ai_video_url || resolvedVideo.aiVideoUrl;
-  const videoThumbnail = categoryAiImageUrl;
+  const videoThumbnail = topicImage.url;
 
   return {
     id: row.id,
@@ -94,8 +103,8 @@ export function mapArticleRow(
     source: row.source,
     sourceUrl: row.source_url || "",
     sourceLogoUrl: row.source_logo_url || "",
-    imageUrl: categoryAiImageUrl,
-    aiImageUrl: categoryAiImageUrl,
+    imageUrl: topicImage.url,
+    aiImageUrl: topicImage.url,
     aiVideoUrl,
     videoStatus: row.video_status || resolvedVideo.videoStatus,
     videoPrompt: row.video_prompt || resolvedVideo.videoPrompt,
