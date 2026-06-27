@@ -10,6 +10,56 @@ import { getArticleTopicImage } from "@/lib/ai-image-url";
 import { ensureCachedAiImage } from "@/lib/ai-image-cache";
 
 const RSS_SYNC_CONCURRENCY = 4;
+export const RSS_AUTO_SYNC_MIN_INTERVAL_MS = 10 * 60 * 1000;
+const RSS_SYNC_LOCK_STALE_MS = 15 * 60 * 1000;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+type RssSyncStatus = "success" | "skipped" | "already_running";
+
+export interface RssSyncMetadata {
+  lastSyncStarted: string | null;
+  lastSyncCompleted: string | null;
+  articlesAdded: number;
+  articlesSkipped: number;
+}
+
+export interface RssSyncSourceResult {
+  source: string;
+  status: string;
+  articlesNew: number;
+  articlesFound: number;
+  articlesFiltered: number;
+  error: string | null;
+}
+
+export interface RssSyncResult extends RssSyncMetadata {
+  status: RssSyncStatus;
+  totalNew: number;
+  totalFound: number;
+  totalFiltered: number;
+  videosBackfilled: number;
+  cleanup: { expired: number; blocked: number };
+  sourceResults: RssSyncSourceResult[];
+  skippedReason?: string;
+}
+
+interface SyncAllFeedsOptions {
+  reason?: string;
+  skipIfFresh?: boolean;
+}
+
+interface SyncLockResult {
+  acquired: boolean;
+  syncId?: string;
+  runningSyncId?: string;
+  runningStartedAt?: string | null;
+}
+
+let activeSyncPromise: Promise<RssSyncResult> | null = null;
+
+function ageInDays(ms: number): number {
+  return ms / MS_PER_DAY;
+}
 
 function normalizeHashText(value: string): string {
   return value
@@ -197,33 +247,158 @@ function seedSources(db: ReturnType<typeof getDbInstance>): void {
   }
 }
 
-export async function syncAllFeeds(): Promise<{
-  totalNew: number;
-  totalFound: number;
-  totalFiltered: number;
-  videosBackfilled: number;
-  cleanup: { expired: number; blocked: number };
-  sourceResults: { source: string; status: string; articlesNew: number; articlesFound: number; articlesFiltered: number; error: string | null }[];
-}> {
+function readSyncMetadataById(db: ReturnType<typeof getDbInstance>, syncId: string): RssSyncMetadata {
+  const row = db.prepare(`
+    SELECT started_at, completed_at, articles_new, articles_duplicate
+    FROM sync_logs
+    WHERE id = ?
+  `).get(syncId) as {
+    started_at: string | null;
+    completed_at: string | null;
+    articles_new: number | null;
+    articles_duplicate: number | null;
+  } | undefined;
+
+  return {
+    lastSyncStarted: row?.started_at || null,
+    lastSyncCompleted: row?.completed_at || null,
+    articlesAdded: row?.articles_new || 0,
+    articlesSkipped: row?.articles_duplicate || 0,
+  };
+}
+
+function readLastSuccessfulSyncMetadata(db: ReturnType<typeof getDbInstance>): RssSyncMetadata {
+  const row = db.prepare(`
+    SELECT started_at, completed_at, articles_new, articles_duplicate
+    FROM sync_logs
+    WHERE source_id IS NULL
+      AND status = 'success'
+      AND completed_at IS NOT NULL
+    ORDER BY completed_at DESC
+    LIMIT 1
+  `).get() as {
+    started_at: string | null;
+    completed_at: string | null;
+    articles_new: number | null;
+    articles_duplicate: number | null;
+  } | undefined;
+
+  return {
+    lastSyncStarted: row?.started_at || null,
+    lastSyncCompleted: row?.completed_at || null,
+    articlesAdded: row?.articles_new || 0,
+    articlesSkipped: row?.articles_duplicate || 0,
+  };
+}
+
+function hasFreshSuccessfulSync(db: ReturnType<typeof getDbInstance>, maxAgeMs: number): boolean {
+  const row = db.prepare(`
+    SELECT id
+    FROM sync_logs
+    WHERE source_id IS NULL
+      AND status = 'success'
+      AND completed_at IS NOT NULL
+      AND julianday(completed_at) >= julianday('now') - ?
+    ORDER BY completed_at DESC
+    LIMIT 1
+  `).get(ageInDays(maxAgeMs));
+  return !!row;
+}
+
+function skippedSyncResult(
+  status: Exclude<RssSyncStatus, "success">,
+  reason: string,
+  metadata: RssSyncMetadata,
+): RssSyncResult {
+  return {
+    status,
+    totalNew: 0,
+    totalFound: 0,
+    totalFiltered: 0,
+    videosBackfilled: 0,
+    cleanup: { expired: 0, blocked: 0 },
+    sourceResults: [],
+    skippedReason: reason,
+    ...metadata,
+  };
+}
+
+function acquireSyncLock(db: ReturnType<typeof getDbInstance>): SyncLockResult {
+  const syncId = generateId();
+  let result: SyncLockResult = { acquired: false };
+
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const running = db.prepare(`
+      SELECT id, started_at
+      FROM sync_logs
+      WHERE source_id IS NULL
+        AND status = 'running'
+        AND julianday(started_at) >= julianday('now') - ?
+      ORDER BY started_at DESC
+      LIMIT 1
+    `).get(ageInDays(RSS_SYNC_LOCK_STALE_MS)) as { id: string; started_at: string | null } | undefined;
+
+    if (running) {
+      result = {
+        acquired: false,
+        runningSyncId: running.id,
+        runningStartedAt: running.started_at,
+      };
+    } else {
+      db.prepare(`
+        UPDATE sync_logs
+        SET completed_at = COALESCE(completed_at, datetime('now')),
+            status = 'error',
+            error = COALESCE(error, 'Stale RSS sync lock released')
+        WHERE source_id IS NULL
+          AND status = 'running'
+      `).run();
+
+      db.prepare(`
+        INSERT INTO sync_logs (id, started_at, status)
+        VALUES (?, datetime('now'), 'running')
+      `).run(syncId);
+
+      result = { acquired: true, syncId };
+    }
+
+    db.exec("COMMIT");
+  } catch (err) {
+    try {
+      db.exec("ROLLBACK");
+    } catch {
+      // Ignore rollback errors and preserve the original failure.
+    }
+    throw err;
+  }
+
+  return result;
+}
+
+export function getLastSuccessfulRssSyncMetadata(): RssSyncMetadata {
+  ensureSchema();
+  const db = getDbInstance();
+  return readLastSuccessfulSyncMetadata(db);
+}
+
+export function hasRecentSuccessfulRssSync(maxAgeMs = RSS_AUTO_SYNC_MIN_INTERVAL_MS): boolean {
+  ensureSchema();
+  const db = getDbInstance();
+  return hasFreshSuccessfulSync(db, maxAgeMs);
+}
+
+async function runSyncPipeline(syncId: string): Promise<RssSyncResult> {
   ensureSchema();
   const db = getDbInstance();
   seedSources(db);
   const initialCleanup = cleanupStoredArticles(db);
 
-  const sourceResults: {
-    source: string; status: string; articlesNew: number;
-    articlesFound: number; articlesFiltered: number; error: string | null;
-  }[] = [];
+  const sourceResults: RssSyncSourceResult[] = [];
 
   let totalNew = 0;
   let totalFound = 0;
   let totalFiltered = 0;
-  const syncId = generateId();
-
-  db.prepare(`
-    INSERT INTO sync_logs (id, started_at, status)
-    VALUES (?, datetime('now'), 'running')
-  `).run(syncId);
 
   const activeSources = RSS_SOURCES.filter((source) => source.active);
   let nextSourceIndex = 0;
@@ -423,10 +598,12 @@ export async function syncAllFeeds(): Promise<{
     blocked: initialCleanup.blocked + finalCleanup.blocked,
   };
 
+  const articlesSkipped = Math.max(totalFound - totalNew, 0);
+
   db.prepare(`
     UPDATE sync_logs SET completed_at = datetime('now'), status = 'success',
-    articles_found = ?, articles_new = ? WHERE id = ? AND status = 'running'
-  `).run(totalFound, totalNew, syncId);
+    articles_found = ?, articles_new = ?, articles_duplicate = ? WHERE id = ? AND status = 'running'
+  `).run(totalFound, totalNew, articlesSkipped, syncId);
 
   const countMissingImageColumn = (column: "image_url" | "ai_image_url"): { count: number } => {
     return db.prepare(`
@@ -447,7 +624,69 @@ export async function syncAllFeeds(): Promise<{
     });
   }
 
-  return { totalNew, totalFound, totalFiltered, videosBackfilled, cleanup, sourceResults };
+  const metadata = readSyncMetadataById(db, syncId);
+  console.log(`[RSS COMPLETE] syncId=${syncId} articlesAdded=${totalNew} articlesSkipped=${articlesSkipped} totalFound=${totalFound}`);
+
+  return {
+    status: "success",
+    totalNew,
+    totalFound,
+    totalFiltered,
+    articlesAdded: totalNew,
+    articlesSkipped,
+    videosBackfilled,
+    cleanup,
+    sourceResults,
+    lastSyncStarted: metadata.lastSyncStarted,
+    lastSyncCompleted: metadata.lastSyncCompleted,
+  };
+}
+
+export async function syncAllFeeds(options: SyncAllFeedsOptions = {}): Promise<RssSyncResult> {
+  ensureSchema();
+  const db = getDbInstance();
+  const reason = options.reason || "manual";
+  const metadata = readLastSuccessfulSyncMetadata(db);
+
+  if (options.skipIfFresh && hasFreshSuccessfulSync(db, RSS_AUTO_SYNC_MIN_INTERVAL_MS)) {
+    console.log(`[RSS SKIPPED] reason=${reason} lastSyncCompleted=${metadata.lastSyncCompleted || "never"} thresholdMinutes=10`);
+    return skippedSyncResult("skipped", "recent_success", metadata);
+  }
+
+  if (activeSyncPromise) {
+    console.log(`[RSS ALREADY RUNNING] reason=${reason}`);
+    return skippedSyncResult("already_running", "active_sync", metadata);
+  }
+
+  const lock = acquireSyncLock(db);
+  if (!lock.acquired || !lock.syncId) {
+    console.log(`[RSS ALREADY RUNNING] reason=${reason} syncId=${lock.runningSyncId || "unknown"} startedAt=${lock.runningStartedAt || "unknown"}`);
+    return skippedSyncResult("already_running", "lock_held", metadata);
+  }
+
+  const syncId = lock.syncId;
+  console.log(`[RSS START] reason=${reason} syncId=${syncId} lastSyncCompleted=${metadata.lastSyncCompleted || "never"}`);
+
+  activeSyncPromise = runSyncPipeline(syncId)
+    .catch((err: unknown) => {
+      const message = errorMessage(err);
+      const failureDb = getDbInstance();
+      failureDb.prepare(`
+        UPDATE sync_logs
+        SET completed_at = datetime('now'),
+            status = 'error',
+            error = ?
+        WHERE id = ?
+          AND status = 'running'
+      `).run(message, syncId);
+      console.error(`[RSS COMPLETE] syncId=${syncId} status=error error=${message}`);
+      throw err;
+    })
+    .finally(() => {
+      activeSyncPromise = null;
+    });
+
+  return activeSyncPromise;
 }
 
 export async function syncSingleSource(source: RSSSourceConfig): Promise<{

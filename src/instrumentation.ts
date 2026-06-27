@@ -1,11 +1,21 @@
 /**
  * Next.js instrumentation hook.
  *
- * Keep this file free of database/RSS imports. Next compiles instrumentation for
- * multiple runtimes, and native packages such as better-sqlite3 pull in Node's
- * fs module, which breaks browser/Edge compilation. RSS syncing is handled by
- * /api/cron/sync-feeds plus the 5-minute client refresh.
+ * Keep direct database/RSS imports out of this file. Next compiles
+ * instrumentation for multiple runtimes, and native packages such as
+ * better-sqlite3 pull in Node's fs module. Load RSS startup work only from the
+ * Node runtime and do not await it, so first-page rendering is not blocked.
  */
-export async function register() {
-  // Intentionally empty.
+export function register() {
+  if (process.env.NODE_ENV !== "production") return;
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
+
+  void import("./lib/rss/auto-sync")
+    .then(({ scheduleStartupRssAutoSync }) => {
+      scheduleStartupRssAutoSync();
+    })
+    .catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err || "Unknown error");
+      console.error(`[RSS AUTO SYNC] status=error error=${message}`);
+    });
 }

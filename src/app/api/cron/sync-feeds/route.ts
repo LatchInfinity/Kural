@@ -14,12 +14,18 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const result = await syncAllFeeds();
+    const result = await syncAllFeeds({ reason: "cron_endpoint", skipIfFresh: true });
     return NextResponse.json({
       status: "ok",
+      syncStatus: result.status,
       totalNew: result.totalNew,
       totalFound: result.totalFound,
       totalFiltered: result.totalFiltered,
+      lastSyncStarted: result.lastSyncStarted,
+      lastSyncCompleted: result.lastSyncCompleted,
+      articlesAdded: result.articlesAdded,
+      articlesSkipped: result.articlesSkipped,
+      skippedReason: result.skippedReason,
       cleanup: result.cleanup,
       sources: result.sourceResults,
       schedule: request.headers.get("x-vercel-cron-schedule") || "manual",

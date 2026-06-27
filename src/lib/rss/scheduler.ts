@@ -8,7 +8,7 @@ export async function runSyncOnce(): Promise<void> {
   if (isRunning) return;
   isRunning = true;
   try {
-    const result = await syncAllFeeds();
+    const result = await syncAllFeeds({ reason: "scheduler", skipIfFresh: true });
     console.log(`[RSS Sync] Completed: ${result.totalNew} new, ${result.totalFound} total from ${result.sourceResults.length} sources; cleanup expired=${result.cleanup.expired}, blocked=${result.cleanup.blocked}`);
     for (const r of result.sourceResults) {
       if (r.status === "error") {
