@@ -47,6 +47,8 @@ const SARVAM_DEFAULT_SPEAKERS: Record<AudioLang, Record<Exclude<VoiceGender, "au
   },
 };
 const ELEVEN_MODEL = "eleven_multilingual_v2";
+const ELEVEN_SPEED_MIN = 0.7;
+const ELEVEN_SPEED_MAX = 1.2;
 const DEFAULT_VOICE_IDS: Record<Exclude<VoiceGender, "auto">, string> = {
   female: "EXAVITQu4vr4xnSDxMaL",
   male: "pNInz6obpgDQGcFmaJgB",
@@ -104,8 +106,8 @@ function envSarvamSpeaker(language: AudioLang, gender: VoiceGender): string {
 }
 
 function clampSpeed(speed: number | undefined): number {
-  if (typeof speed !== "number" || Number.isNaN(speed)) return 1.25;
-  return Math.max(0.7, Math.min(1.25, speed));
+  if (typeof speed !== "number" || Number.isNaN(speed)) return ELEVEN_SPEED_MAX;
+  return Math.max(ELEVEN_SPEED_MIN, Math.min(ELEVEN_SPEED_MAX, speed));
 }
 
 function clampSarvamPace(speed: number | undefined): number {
