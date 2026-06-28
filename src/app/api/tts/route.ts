@@ -36,6 +36,19 @@ interface TtsBody {
 
 const SARVAM_MODEL = "bulbul:v3";
 const SARVAM_ENDPOINT = "https://api.sarvam.ai/text-to-speech";
+const OPENAI_TTS_ENDPOINT = "https://api.openai.com/v1/audio/speech";
+const OPENAI_TTS_MODEL = process.env.OPENAI_TTS_MODEL || "gpt-4o-mini-tts";
+const ELEVENLABS_MODEL = "eleven_multilingual_v2";
+const ELEVENLABS_SPEED_MIN = 0.7;
+const ELEVENLABS_SPEED_MAX = 1.2;
+const ELEVENLABS_DEFAULT_VOICES: Record<Exclude<VoiceGender, "auto">, string> = {
+  female: "EXAVITQu4vr4xnSDxMaL",
+  male: "pNInz6obpgDQGcFmaJgB",
+};
+const OPENAI_DEFAULT_VOICES: Record<Exclude<VoiceGender, "auto">, string> = {
+  female: "marin",
+  male: "cedar",
+};
 const SARVAM_DEFAULT_SPEAKERS: Record<AudioLang, Record<Exclude<VoiceGender, "auto">, string>> = {
   ta: {
     female: "roopa",
@@ -46,13 +59,6 @@ const SARVAM_DEFAULT_SPEAKERS: Record<AudioLang, Record<Exclude<VoiceGender, "au
     male: "rahul",
   },
 };
-const ELEVEN_MODEL = "eleven_multilingual_v2";
-const ELEVEN_SPEED_MIN = 0.7;
-const ELEVEN_SPEED_MAX = 1.2;
-const DEFAULT_VOICE_IDS: Record<Exclude<VoiceGender, "auto">, string> = {
-  female: "EXAVITQu4vr4xnSDxMaL",
-  male: "pNInz6obpgDQGcFmaJgB",
-};
 
 interface SarvamSpeechResponse {
   request_id?: string | null;
@@ -62,37 +68,55 @@ interface SarvamSpeechResponse {
   message?: unknown;
 }
 
-interface SelectedVoice {
+interface OpenAiErrorResponse {
+  error?: {
+    message?: string;
+    type?: string;
+    code?: string | null;
+  };
+  message?: string;
+}
+
+interface ElevenLabsErrorResponse {
+  detail?: string | {
+    message?: string;
+    status?: string;
+  };
+  error?: string;
+  message?: string;
+}
+
+interface SelectedElevenLabsVoice {
   voiceId: string;
   name: string;
 }
 
 const voiceCache = new Map<string, { expiresAt: number; voices: ElevenVoice[] }>();
 
-function getApiKeys(): string[] {
-  const raw = process.env.ELEVENLABS_API_KEYS || process.env.ELEVENLABS_API_KEY || "";
-  return raw
-    .split(/[\s,]+/)
-    .map((key) => key.trim())
-    .filter(Boolean);
-}
-
 function getSarvamApiKeys(): string[] {
-  const raw = process.env.SARVAM_API_KEYS || process.env.SARVAM_API_KEY || "";
-  return raw
-    .split(/[\s,]+/)
-    .map((key) => key.trim())
-    .filter(Boolean);
+  return [];
 }
 
-function envVoiceId(language: AudioLang, gender: VoiceGender): string {
-  const lang = language.toUpperCase();
-  const voiceGender = gender === "auto" ? "FEMALE" : gender.toUpperCase();
-  return (
-    process.env[`ELEVENLABS_${lang}_${voiceGender}_VOICE_ID`] ||
-    process.env[`ELEVENLABS_${voiceGender}_VOICE_ID`] ||
-    ""
-  );
+function getElevenLabsApiKeys(): string[] {
+  const indexedKeys = [
+    process.env.ELEVENLABS_API_KEY_1,
+    process.env.ELEVENLABS_API_KEY_2,
+    process.env.ELEVENLABS_API_KEY_3,
+  ];
+  const raw = [
+    process.env.ELEVENLABS_API_KEYS || "",
+    process.env.ELEVENLABS_API_KEY || "",
+    ...indexedKeys,
+  ].join(",");
+
+  return Array.from(new Set(raw
+    .split(/[\s,]+/)
+    .map((key) => key.trim())
+    .filter(Boolean)));
+}
+
+function getOpenAiApiKey(): string {
+  return "";
 }
 
 function envSarvamSpeaker(language: AudioLang, gender: VoiceGender): string {
@@ -105,14 +129,35 @@ function envSarvamSpeaker(language: AudioLang, gender: VoiceGender): string {
   );
 }
 
-function clampSpeed(speed: number | undefined): number {
-  if (typeof speed !== "number" || Number.isNaN(speed)) return ELEVEN_SPEED_MAX;
-  return Math.max(ELEVEN_SPEED_MIN, Math.min(ELEVEN_SPEED_MAX, speed));
+function envOpenAiVoice(language: AudioLang, gender: VoiceGender): string {
+  const lang = language.toUpperCase();
+  const voiceGender = gender === "auto" ? "FEMALE" : gender.toUpperCase();
+  return (
+    process.env[`OPENAI_${lang}_${voiceGender}_VOICE`] ||
+    process.env[`OPENAI_${voiceGender}_VOICE`] ||
+    process.env.OPENAI_TTS_VOICE ||
+    ""
+  );
+}
+
+function envElevenLabsVoiceId(language: AudioLang, gender: VoiceGender): string {
+  const lang = language.toUpperCase();
+  const voiceGender = gender === "auto" ? "FEMALE" : gender.toUpperCase();
+  return (
+    process.env[`ELEVENLABS_${lang}_${voiceGender}_VOICE_ID`] ||
+    process.env[`ELEVENLABS_${voiceGender}_VOICE_ID`] ||
+    ""
+  );
 }
 
 function clampSarvamPace(speed: number | undefined): number {
   if (typeof speed !== "number" || Number.isNaN(speed)) return 1.25;
   return Math.max(0.5, Math.min(2, speed));
+}
+
+function clampElevenLabsSpeed(speed: number | undefined): number {
+  if (typeof speed !== "number" || Number.isNaN(speed)) return ELEVENLABS_SPEED_MAX;
+  return Math.max(ELEVENLABS_SPEED_MIN, Math.min(ELEVENLABS_SPEED_MAX, speed));
 }
 
 function sanitizeText(text: string): string {
@@ -228,53 +273,6 @@ function normalizeSpeechText(text: string, language: AudioLang): string {
     .replace(/\b\d{5,}\b/g, (match) => formatIndianNumber(match));
 }
 
-function voiceText(voice: ElevenVoice): string {
-  const labels = voice.labels ? Object.values(voice.labels).join(" ") : "";
-  return `${voice.name || ""} ${voice.description || ""} ${voice.category || ""} ${labels}`.toLowerCase();
-}
-
-function scoreVoice(voice: ElevenVoice, language: AudioLang, gender: VoiceGender): number {
-  const text = voiceText(voice);
-  let score = 0;
-
-  if (language === "ta") {
-    if (text.includes("tamil")) score += 80;
-    if (text.includes("india") || text.includes("indian")) score += 30;
-    if (text.includes("multilingual")) score += 15;
-  } else {
-    if (text.includes("english")) score += 70;
-    if (text.includes("india") || text.includes("indian")) score += 25;
-    if (text.includes("american") || text.includes("british")) score += 10;
-  }
-
-  if (gender !== "auto") {
-    if (text.includes(gender)) score += 45;
-    if (gender === "female" && /(bella|rachel|domi|elli|sarah|aria|jessica|laura|lily)/i.test(text)) score += 18;
-    if (gender === "male" && /(adam|antoni|josh|arnold|sam|george|charlie|daniel|will)/i.test(text)) score += 18;
-  }
-
-  if (text.includes("professional")) score += 8;
-  if (text.includes("premade")) score += 4;
-  return score;
-}
-
-async function fetchVoices(apiKey: string): Promise<ElevenVoice[]> {
-  const cached = voiceCache.get(apiKey);
-  if (cached && cached.expiresAt > Date.now()) return cached.voices;
-
-  const response = await fetch("https://api.elevenlabs.io/v2/voices", {
-    headers: { "xi-api-key": apiKey },
-    cache: "no-store",
-    signal: AbortSignal.timeout(10000),
-  });
-
-  if (!response.ok) return [];
-  const data = await response.json() as { voices?: ElevenVoice[] };
-  const voices = Array.isArray(data.voices) ? data.voices : [];
-  voiceCache.set(apiKey, { voices, expiresAt: Date.now() + 10 * 60 * 1000 });
-  return voices;
-}
-
 function readableVoiceName(language: AudioLang, gender: VoiceGender, prefix: string): string {
   const lang = language === "ta" ? "Tamil" : "English";
   const voiceGender = gender === "auto" ? "voice" : `${gender} voice`;
@@ -388,82 +386,32 @@ function normalizeSarvamError(message: string): string {
   return message || "Unable to generate Sarvam AI audio";
 }
 
-function normalizeElevenLabsError(message: string): string {
+function normalizeOpenAiError(message: string): string {
   try {
-    const parsed = JSON.parse(message) as {
-      detail?: string | { status?: string; message?: string };
-      error?: string;
-      message?: string;
-    };
-    if (typeof parsed.detail === "object" && parsed.detail?.message) message = parsed.detail.message;
-    else if (typeof parsed.detail === "string") message = parsed.detail;
-    else if (typeof parsed.error === "string") message = parsed.error;
-    else if (typeof parsed.message === "string") message = parsed.message;
+    const parsed = JSON.parse(message) as OpenAiErrorResponse;
+    if (parsed.error?.message) message = parsed.error.message;
+    else if (parsed.message) message = parsed.message;
   } catch {}
 
-  if (/quota/i.test(message)) {
-    return "ElevenLabs quota exceeded for the configured API key";
-  }
-  if (/unauthorized|invalid api|xi-api-key|forbidden/i.test(message)) {
-    return "ElevenLabs API key is invalid or not allowed";
-  }
-  if (/rate|limit/i.test(message)) {
-    return "ElevenLabs rate limit reached";
-  }
+  if (/quota|insufficient_quota|billing|credit/i.test(message)) return "OpenAI TTS quota or billing is not available";
+  if (/unauthorized|forbidden|api key|invalid.*key/i.test(message)) return "OpenAI API key is invalid or not allowed";
+  if (/rate|limit/i.test(message)) return "OpenAI TTS rate limit reached";
+  return message || "Unable to generate OpenAI TTS audio";
+}
+
+function normalizeElevenLabsError(message: string): string {
+  try {
+    const parsed = JSON.parse(message) as ElevenLabsErrorResponse;
+    if (typeof parsed.detail === "string") message = parsed.detail;
+    else if (parsed.detail?.message) message = parsed.detail.message;
+    else if (parsed.message) message = parsed.message;
+    else if (parsed.error) message = parsed.error;
+  } catch {}
+
+  if (/quota|credit|limit.*reached|character/i.test(message)) return "ElevenLabs quota or character limit is not available";
+  if (/unauthorized|forbidden|api key|invalid.*key/i.test(message)) return "ElevenLabs API key is invalid or not allowed";
+  if (/rate|too many/i.test(message)) return "ElevenLabs rate limit reached";
   return message || "Unable to generate ElevenLabs audio";
-}
-
-async function selectVoice(apiKey: string, body: TtsBody): Promise<SelectedVoice> {
-  const language = body.language || "ta";
-  const gender = body.gender || "female";
-  if (body.voiceId) {
-    return { voiceId: body.voiceId, name: readableVoiceName(language, gender, "ElevenLabs custom") };
-  }
-
-  const configured = envVoiceId(language, gender);
-  if (configured) {
-    return { voiceId: configured, name: readableVoiceName(language, gender, "ElevenLabs configured") };
-  }
-
-  const voices = await fetchVoices(apiKey);
-  const ranked = [...voices].sort((a, b) => scoreVoice(b, language, gender) - scoreVoice(a, language, gender));
-  if (ranked[0]?.voice_id) {
-    return {
-      voiceId: ranked[0].voice_id,
-      name: ranked[0].name || readableVoiceName(language, gender, "ElevenLabs"),
-    };
-  }
-
-  const defaultGender = gender === "male" ? "male" : "female";
-  return {
-    voiceId: DEFAULT_VOICE_IDS[defaultGender],
-    name: readableVoiceName(language, defaultGender, "ElevenLabs default"),
-  };
-}
-
-async function createSpeech(apiKey: string, voiceId: string, body: TtsBody): Promise<Response> {
-  const language = body.language || "ta";
-  return fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`, {
-    method: "POST",
-    headers: {
-      "Accept": "audio/mpeg",
-      "Content-Type": "application/json",
-      "xi-api-key": apiKey,
-    },
-    body: JSON.stringify({
-      text: sanitizeText(body.text || ""),
-      model_id: ELEVEN_MODEL,
-      language_code: language,
-      voice_settings: {
-        stability: 0.45,
-        similarity_boost: 0.82,
-        style: 0.18,
-        use_speaker_boost: true,
-        speed: clampSpeed(body.speed),
-      },
-    }),
-    signal: AbortSignal.timeout(30000),
-  });
 }
 
 async function createSarvamSpeech(apiKey: string, body: TtsBody, text: string): Promise<Response> {
@@ -490,10 +438,153 @@ async function createSarvamSpeech(apiKey: string, body: TtsBody, text: string): 
   });
 }
 
+function configuredElevenLabsVoiceId(body: TtsBody): string {
+  const language = body.language || "ta";
+  const gender = body.gender === "male" ? "male" : "female";
+  return body.voiceId || envElevenLabsVoiceId(language, gender) || "";
+}
+
+function voiceText(voice: ElevenVoice): string {
+  const labels = voice.labels ? Object.values(voice.labels).join(" ") : "";
+  return `${voice.name || ""} ${voice.description || ""} ${voice.category || ""} ${labels}`.toLowerCase();
+}
+
+function scoreElevenLabsVoice(voice: ElevenVoice, language: AudioLang, gender: VoiceGender): number {
+  const text = voiceText(voice);
+  let score = 0;
+
+  if (language === "ta") {
+    if (text.includes("tamil")) score += 80;
+    if (text.includes("india") || text.includes("indian")) score += 30;
+    if (text.includes("multilingual")) score += 15;
+  } else {
+    if (text.includes("english")) score += 70;
+    if (text.includes("india") || text.includes("indian")) score += 25;
+    if (text.includes("american") || text.includes("british")) score += 10;
+  }
+
+  if (gender !== "auto") {
+    if (text.includes(gender)) score += 45;
+    if (gender === "female" && /(bella|rachel|domi|elli|sarah|aria|jessica|laura|lily)/i.test(text)) score += 18;
+    if (gender === "male" && /(adam|antoni|josh|arnold|sam|george|charlie|daniel|will)/i.test(text)) score += 18;
+  }
+
+  if (text.includes("professional")) score += 8;
+  if (text.includes("premade")) score += 4;
+  return score;
+}
+
+async function fetchElevenLabsVoices(apiKey: string): Promise<ElevenVoice[]> {
+  const cacheKey = crypto.createHash("sha256").update(apiKey).digest("hex");
+  const cached = voiceCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.voices;
+
+  const response = await fetch("https://api.elevenlabs.io/v2/voices", {
+    headers: { "xi-api-key": apiKey },
+    cache: "no-store",
+    signal: AbortSignal.timeout(10000),
+  });
+
+  if (!response.ok) return [];
+  const data = await response.json() as { voices?: ElevenVoice[] };
+  const voices = Array.isArray(data.voices) ? data.voices : [];
+  voiceCache.set(cacheKey, { voices, expiresAt: Date.now() + 10 * 60 * 1000 });
+  return voices;
+}
+
+async function selectElevenLabsVoice(apiKey: string, body: TtsBody): Promise<SelectedElevenLabsVoice> {
+  const language = body.language || "ta";
+  const gender = body.gender || "female";
+  const configured = configuredElevenLabsVoiceId(body);
+  if (configured) {
+    return { voiceId: configured, name: readableVoiceName(language, gender, "ElevenLabs configured") };
+  }
+
+  const voices = await fetchElevenLabsVoices(apiKey);
+  const ranked = [...voices].sort((a, b) => scoreElevenLabsVoice(b, language, gender) - scoreElevenLabsVoice(a, language, gender));
+  if (ranked[0]?.voice_id) {
+    return {
+      voiceId: ranked[0].voice_id,
+      name: ranked[0].name || readableVoiceName(language, gender, "ElevenLabs"),
+    };
+  }
+
+  const defaultGender = gender === "male" ? "male" : "female";
+  return {
+    voiceId: ELEVENLABS_DEFAULT_VOICES[defaultGender],
+    name: readableVoiceName(language, defaultGender, "ElevenLabs default"),
+  };
+}
+
+async function createElevenLabsSpeech(apiKey: string, voiceId: string, body: TtsBody, text: string): Promise<Response> {
+  return fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`, {
+    method: "POST",
+    headers: {
+      "Accept": "audio/mpeg",
+      "Content-Type": "application/json",
+      "xi-api-key": apiKey,
+    },
+    body: JSON.stringify({
+      text,
+      model_id: ELEVENLABS_MODEL,
+      voice_settings: {
+        stability: 0.45,
+        similarity_boost: 0.82,
+        style: 0.18,
+        use_speaker_boost: true,
+        speed: clampElevenLabsSpeed(body.speed),
+      },
+    }),
+    signal: AbortSignal.timeout(30000),
+  });
+}
+
+function selectOpenAiVoice(body: TtsBody): string {
+  const language = body.language || "ta";
+  const gender = body.gender === "male" ? "male" : "female";
+  return body.voiceId || envOpenAiVoice(language, gender) || OPENAI_DEFAULT_VOICES[gender];
+}
+
+function openAiInstructions(body: TtsBody): string {
+  const language = body.language || "ta";
+  const pace = clampSarvamPace(body.speed);
+  const languageName = language === "ta" ? "Tamil" : "Indian English";
+  return [
+    `Read this as a clear ${languageName} news bulletin.`,
+    "Use a neutral newsroom tone with natural pauses.",
+    `Keep the pace close to ${pace.toFixed(2)}x without sounding rushed.`,
+  ].join(" ");
+}
+
+async function createOpenAiSpeech(apiKey: string, body: TtsBody, text: string): Promise<Response> {
+  return fetch(OPENAI_TTS_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: OPENAI_TTS_MODEL,
+      voice: selectOpenAiVoice(body),
+      input: text,
+      instructions: openAiInstructions(body),
+      response_format: "mp3",
+      speed: clampSarvamPace(body.speed),
+    }),
+    signal: AbortSignal.timeout(30000),
+  });
+}
+
 function sarvamVoiceName(body: TtsBody): string {
   const language = body.language || "ta";
   const gender = body.gender === "male" ? "male" : "female";
   return `Sarvam ${selectSarvamSpeaker(body)} ${readableVoiceName(language, gender, "").trim()}`;
+}
+
+function openAiVoiceName(body: TtsBody): string {
+  const language = body.language || "ta";
+  const gender = body.gender === "male" ? "male" : "female";
+  return `OpenAI ${selectOpenAiVoice(body)} ${readableVoiceName(language, gender, "").trim()}`;
 }
 
 export async function POST(request: NextRequest) {
@@ -530,9 +621,73 @@ export async function POST(request: NextRequest) {
     let lastStatus = 500;
     let lastMessage = "Unable to generate audio";
 
+    const elevenLabsKeys = getElevenLabsApiKeys();
+    for (let keyIndex = 0; keyIndex < elevenLabsKeys.length; keyIndex += 1) {
+      try {
+        console.log("[TTS PROVIDER]", {
+          provider: "elevenlabs",
+          keyIndex: keyIndex + 1,
+          totalKeys: elevenLabsKeys.length,
+          cacheKey,
+          newsId: body.newsId || null,
+          status: "attempt",
+        });
+        const selectedVoice = await selectElevenLabsVoice(elevenLabsKeys[keyIndex], body);
+        const response = await createElevenLabsSpeech(elevenLabsKeys[keyIndex], selectedVoice.voiceId, body, text);
+        if (response.ok) {
+          const audio = Buffer.from(await response.arrayBuffer());
+          const info = await saveCachedAudio(cacheKey, audio, {
+            provider: "elevenlabs",
+            contentType: response.headers.get("content-type") || "audio/mpeg",
+            voiceId: selectedVoice.voiceId,
+            voiceName: selectedVoice.name,
+            createdAt: new Date().toISOString(),
+          }, body.newsId);
+          return readyAudioResponse(request, cacheKey, info, "MISS", startedAt);
+        }
+
+        lastStatus = response.status;
+        lastMessage = normalizeElevenLabsError(await response.text().catch(() => response.statusText));
+        console.log("[TTS FAILURE]", {
+          provider: "elevenlabs",
+          keyIndex: keyIndex + 1,
+          totalKeys: elevenLabsKeys.length,
+          status: response.status,
+          cacheKey,
+          newsId: body.newsId || null,
+          error: lastMessage,
+        });
+      } catch (err) {
+        lastMessage = normalizeElevenLabsError(err instanceof Error ? err.message : String(err));
+        console.log("[TTS FAILURE]", {
+          provider: "elevenlabs",
+          keyIndex: keyIndex + 1,
+          totalKeys: elevenLabsKeys.length,
+          cacheKey,
+          newsId: body.newsId || null,
+          error: lastMessage,
+        });
+      }
+    }
+
     const sarvamKeys = getSarvamApiKeys();
+    if (elevenLabsKeys.length > 0 && sarvamKeys.length > 0) {
+      console.log("[TTS SWITCH]", {
+        from: "elevenlabs",
+        to: "sarvam",
+        cacheKey,
+        newsId: body.newsId || null,
+        reason: lastMessage,
+      });
+    }
     for (const apiKey of sarvamKeys) {
       try {
+        console.log("[TTS PROVIDER]", {
+          provider: "sarvam",
+          cacheKey,
+          newsId: body.newsId || null,
+          status: "attempt",
+        });
         const response = await createSarvamSpeech(apiKey, body, text);
         if (response.ok) {
           const data = await response.json() as SarvamSpeechResponse;
@@ -564,47 +719,61 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const keys = getApiKeys();
-    if (keys.length === 0 && sarvamKeys.length === 0) {
-      console.log("[AUDIO API RESPONSE]", {
-        status: "error",
-        cacheKey,
-        error: "Voice provider is not configured",
-        elapsedMs: Date.now() - startedAt,
-      });
-      return NextResponse.json({ error: "Voice provider is not configured" }, { status: 501 });
-    }
-
-    for (const apiKey of keys) {
+    const openAiApiKey = getOpenAiApiKey();
+    if (openAiApiKey) {
       try {
-        const selectedVoice = await selectVoice(apiKey, body);
-        const response = await createSpeech(apiKey, selectedVoice.voiceId, { ...body, text });
+        if (sarvamKeys.length > 0 || elevenLabsKeys.length > 0) {
+          console.log("[TTS SWITCH]", {
+            from: sarvamKeys.length > 0 ? "sarvam" : "elevenlabs",
+            to: "openai",
+            cacheKey,
+            newsId: body.newsId || null,
+            reason: lastMessage,
+          });
+        }
+        console.log("[TTS PROVIDER]", {
+          provider: "openai",
+          cacheKey,
+          newsId: body.newsId || null,
+          status: "attempt",
+        });
+        const response = await createOpenAiSpeech(openAiApiKey, body, text);
         if (response.ok) {
           const audio = Buffer.from(await response.arrayBuffer());
           const contentType = response.headers.get("content-type") || "audio/mpeg";
+          const voice = selectOpenAiVoice(body);
           const info = await saveCachedAudio(cacheKey, audio, {
-            provider: "elevenlabs",
+            provider: "openai",
             contentType,
-            voiceId: selectedVoice.voiceId,
-            voiceName: selectedVoice.name,
+            voiceId: voice,
+            voiceName: openAiVoiceName(body),
             createdAt: new Date().toISOString(),
           }, body.newsId);
           return readyAudioResponse(request, cacheKey, info, "MISS", startedAt);
         }
 
         lastStatus = response.status;
-        lastMessage = normalizeElevenLabsError(await response.text().catch(() => response.statusText));
-        const retryable = [401, 403, 429, 500, 502, 503, 504].includes(response.status)
-          || /quota|rate|limit/i.test(lastMessage);
-        if (!retryable) break;
+        lastMessage = normalizeOpenAiError(await response.text().catch(() => response.statusText));
       } catch (err) {
-        lastMessage = normalizeElevenLabsError(err instanceof Error ? err.message : String(err));
+        lastMessage = normalizeOpenAiError(err instanceof Error ? err.message : String(err));
       }
+    }
+
+    if (sarvamKeys.length === 0 && elevenLabsKeys.length === 0 && !openAiApiKey) {
+      console.log("[AUDIO API RESPONSE]", {
+        status: "error",
+        cacheKey,
+        provider: "none",
+        error: "No ElevenLabs TTS API key is configured",
+        elapsedMs: Date.now() - startedAt,
+      });
+      return NextResponse.json({ error: "No ElevenLabs TTS API key is configured" }, { status: 501 });
     }
 
     console.log("[AUDIO API RESPONSE]", {
       status: "error",
       cacheKey,
+      provider: openAiApiKey ? "openai" : sarvamKeys.length > 0 ? "sarvam" : elevenLabsKeys.length > 0 ? "elevenlabs" : "none",
       error: lastMessage,
       httpStatus: lastStatus,
       elapsedMs: Date.now() - startedAt,

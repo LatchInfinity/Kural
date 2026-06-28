@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDbInstance } from "@/lib/db";
-import { type ArticleDbRow, mapArticleRow } from "@/lib/api-utils";
+import { errorMessage, errorStack, type ArticleDbRow, mapArticleRow } from "@/lib/api-utils";
 import { NEWS_RETENTION_MS, TAMIL_NADU_NEWS_CATEGORIES } from "@/lib/news-config";
 import { isDisplayableNewsItem } from "@/lib/news-policy";
 
@@ -8,6 +8,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
   const { id } = await params;
   const db = getDbInstance();
   const freshCutoff = new Date(Date.now() - NEWS_RETENTION_MS).toISOString();
@@ -29,4 +30,12 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   }
 
   return NextResponse.json(mapArticleRow(row));
+  } catch (err: unknown) {
+    console.error("[API NEWS ERROR]", {
+      route: "/api/news/[id]",
+      message: errorMessage(err),
+      stack: errorStack(err),
+    });
+    return NextResponse.json({ error: "Internal Server Error", message: errorMessage(err) }, { status: 500 });
+  }
 }

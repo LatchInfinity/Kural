@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
+import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Pause, Play, SkipBack, SkipForward, X } from "lucide-react";
 import SafeImage from "@/components/safe-image";
@@ -30,8 +31,10 @@ export default function NewspaperMiniPlayer() {
   const setPopupOpen = useAudioStore((s) => s.setPopupOpen);
 
   const openPopup = useCallback(() => setPopupOpen(true), [setPopupOpen]);
+  const pathname = usePathname();
+  const isOnAudioNewsPage = pathname === "/audio-news";
 
-  if (!track) return null;
+  if (!track || isOnAudioNewsPage) return null;
 
   return (
     <AnimatePresence>

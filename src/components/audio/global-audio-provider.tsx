@@ -11,6 +11,7 @@ interface GlobalAudioProviderProps {
 const MEDIA_ERR_ABORTED = 1;
 const AUDIO_PROBE_TIMEOUT_MS = 10000;
 const AUDIO_READY_TIMEOUT_MS = 30000;
+const TTS_GENERATION_SPEED = 1.25;
 
 interface TtsReadyResponse {
   status?: string;
@@ -23,7 +24,7 @@ interface TtsReadyResponse {
 }
 
 function providerFromValue(value: string | null | undefined): AudioProvider {
-  if (value === "sarvam" || value === "elevenlabs" || value === "browser") return value;
+  if (value === "sarvam" || value === "elevenlabs" || value === "openai" || value === "browser") return value;
   return "none";
 }
 
@@ -238,6 +239,7 @@ function waitForAudioCanPlay(audio: HTMLAudioElement, signal: AbortSignal): Prom
 export default function GlobalAudioProvider({ children }: GlobalAudioProviderProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const lastEndedAdvanceRef = useRef<string>("");
 
   const currentTrack = useAudioStore((s) => s.currentTrack);
   const language = useAudioStore((s) => s.language);
@@ -260,9 +262,8 @@ export default function GlobalAudioProvider({ children }: GlobalAudioProviderPro
       currentTrack.title,
       language,
       voiceGender,
-      speed,
     ].join("|");
-  }, [currentTrack, language, speed, voiceGender]);
+  }, [currentTrack, language, voiceGender]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -270,6 +271,13 @@ export default function GlobalAudioProvider({ children }: GlobalAudioProviderPro
 
     audio.volume = volume;
   }, [volume]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    audio.playbackRate = speed;
+  }, [speed]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -314,13 +322,21 @@ export default function GlobalAudioProvider({ children }: GlobalAudioProviderPro
     };
     const handleEnded = () => {
       const duration = Number.isFinite(audio.duration) ? audio.duration : 0;
-      if (duration > 0 && audio.currentTime < duration - 0.5 && useAudioStore.getState().isPlaying) {
+      if (!audio.ended && duration > 0 && audio.currentTime < duration - 0.5 && useAudioStore.getState().isPlaying) {
         resumeIfUnexpectedlyPaused();
         return;
       }
 
       handleProgress();
       const state = useAudioStore.getState();
+      const endedKey = [
+        state.currentTrack?.articleId || "",
+        state.currentIndex,
+        audio.currentSrc || audio.src || "",
+      ].join("|");
+      if (!state.currentTrack || lastEndedAdvanceRef.current === endedKey) return;
+      lastEndedAdvanceRef.current = endedKey;
+
       if (state.currentIndex < state.queue.length - 1) {
         state.next();
       } else {
@@ -370,6 +386,7 @@ export default function GlobalAudioProvider({ children }: GlobalAudioProviderPro
     if (!audio) return;
 
     abortRef.current?.abort();
+    lastEndedAdvanceRef.current = "";
 
     if (!currentTrack) {
       audio.pause();
@@ -410,7 +427,7 @@ export default function GlobalAudioProvider({ children }: GlobalAudioProviderPro
               narration,
               language,
               voiceGender,
-              speed,
+              TTS_GENERATION_SPEED,
               forceRegenerate,
               controller.signal,
             );
@@ -472,7 +489,7 @@ export default function GlobalAudioProvider({ children }: GlobalAudioProviderPro
     void loadAudio();
 
     return () => controller.abort();
-  }, [currentTrack, language, setAudioLoading, setAudioReady, setError, speed, trackKey, voiceGender]);
+  }, [currentTrack, language, setAudioLoading, setAudioReady, setError, trackKey, voiceGender]);
 
   useEffect(() => {
     const audio = audioRef.current;

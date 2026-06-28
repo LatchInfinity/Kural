@@ -1,7 +1,7 @@
 import path from "path";
 import { promises as fs } from "fs";
 
-export type TtsProvider = "sarvam" | "elevenlabs";
+export type TtsProvider = "sarvam" | "elevenlabs" | "openai";
 
 export interface CachedAudioMeta {
   provider: TtsProvider;

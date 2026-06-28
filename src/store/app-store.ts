@@ -1,9 +1,11 @@
 "use client";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { NewspaperView, Comment, Toast, TimePeriod, ReactionType } from "@/types";
+import type { NewspaperView, Comment, Toast, TimePeriod, ReactionType, NewsItem } from "@/types";
 import type { AudioLang, QueueItem, VoiceGender } from "@/lib/audio-engine";
+import { getArticleContentText, getArticleDisplayText } from "@/lib/news-text";
 import { useAudioStore } from "@/store/audio-store";
+import { useNewsStore } from "@/store/news-store";
 import { useUserStore } from "@/store/user-store";
 
 interface AppState {
@@ -98,6 +100,37 @@ function normalizeComment(c: PersistedComment): Comment {
     likedBy: Array.isArray(c.likedBy) ? c.likedBy : [],
     replies: (c.replies || []).map(normalizeComment),
   };
+}
+
+function toQueueItem(item: NewsItem): QueueItem {
+  return {
+    id: item.id,
+    headline: item.headline,
+    englishHeadline: item.englishHeadline,
+    imageUrl: item.imageUrl,
+    aiImageUrl: item.aiImageUrl,
+    tamilSummary: getArticleDisplayText(item, "ta"),
+    englishSummary: getArticleDisplayText(item, "en"),
+    content: getArticleContentText(item, "ta"),
+    source: item.source,
+    sourceUrl: item.sourceUrl,
+    category: item.category,
+    publishedAt: item.publishedAt,
+  };
+}
+
+function currentNewsQueueFor(item: QueueItem): QueueItem[] {
+  const seen = new Set<string>();
+  const queue = useNewsStore.getState().articles
+    .filter((article) => article.retention !== "archived")
+    .filter((article) => {
+      if (seen.has(article.id)) return false;
+      seen.add(article.id);
+      return true;
+    })
+    .map(toQueueItem);
+
+  return queue.some((queued) => queued.id === item.id) ? queue : [item];
 }
 
 export const useAppStore = create<AppState>()(
@@ -226,7 +259,13 @@ export const useAppStore = create<AppState>()(
 
       playNews: (item, index, queue) => {
         const audio = useAudioStore.getState();
-        audio.setTrack(item, { index, queue, language: audio.language });
+        const playQueue = queue.length > 1 ? queue : currentNewsQueueFor(item);
+        const queueIndex = playQueue.findIndex((queued) => queued.id === item.id);
+        audio.setTrack(item, {
+          index: queueIndex >= 0 ? queueIndex : index,
+          queue: playQueue,
+          language: audio.language,
+        });
       },
       pauseNews: () => useAudioStore.getState().pause(),
       resumeNews: () => useAudioStore.getState().play(),

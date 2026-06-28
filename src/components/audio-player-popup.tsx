@@ -670,6 +670,19 @@ export default function AudioPlayerPopup() {
                           </span>
                         )}
                       </div>
+                      {sourceUrlDisplay && (
+                        <div className="mt-3 flex justify-center">
+                          <a
+                            href={sourceUrlDisplay}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/65 transition-colors hover:bg-teal-500/10 hover:text-teal-300"
+                          >
+                            <ExternalLink size={13} />
+                            <span className="truncate">{track.source || "Original source"}</span>
+                          </a>
+                        </div>
+                      )}
                       {(error || audioNotice) && (
                         <p className={`mt-3 text-center text-xs ${error ? "text-rose-200" : "text-white/45"}`}>
                           {error || audioNotice}

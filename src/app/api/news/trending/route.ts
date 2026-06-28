@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDbInstance } from "@/lib/db";
-import { type ArticleDbRow, mapArticleRow } from "@/lib/api-utils";
+import { errorMessage, errorStack, type ArticleDbRow, mapArticleRow } from "@/lib/api-utils";
 import { NEWS_RETENTION_MS, TAMIL_NADU_NEWS_CATEGORIES } from "@/lib/news-config";
 import { isDisplayableNewsItem } from "@/lib/news-policy";
 
@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export async function GET(request: NextRequest) {
+  try {
   const db = getDbInstance();
   const url = new URL(request.url);
   const limit = Math.min(20, parseInt(url.searchParams.get("limit") || "10", 10));
@@ -29,4 +30,13 @@ export async function GET(request: NextRequest) {
   `).all(...TAMIL_NADU_NEWS_CATEGORIES, freshCutoff, limit) as ArticleDbRow[];
 
   return NextResponse.json({ articles: rows.map((row) => ({ ...mapArticleRow(row), trending: true })).filter(isDisplayableNewsItem) });
+  } catch (err: unknown) {
+    console.error("[API NEWS ERROR]", {
+      route: "/api/news/trending",
+      url: request.url,
+      message: errorMessage(err),
+      stack: errorStack(err),
+    });
+    return NextResponse.json({ error: "Internal Server Error", message: errorMessage(err) }, { status: 500 });
+  }
 }

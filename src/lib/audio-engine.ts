@@ -5,7 +5,7 @@ import { getArticleContentText, getArticleHeadlineText, getArticleSpeechText, ty
 export type EngineState = "idle" | "loading" | "playing" | "paused" | "error";
 export type AudioLang = "ta" | "en";
 export type VoiceGender = "auto" | "female" | "male";
-export type AudioProvider = "none" | "sarvam" | "elevenlabs" | "browser";
+export type AudioProvider = "none" | "sarvam" | "elevenlabs" | "openai" | "browser";
 
 export interface VoiceInfo {
   name: string;

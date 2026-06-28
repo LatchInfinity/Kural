@@ -126,7 +126,8 @@ export const useAudioStore = create<AudioStoreState & AudioStoreActions>()((set,
     const language = options.language || get().language;
     const queueItems = options.queue && options.queue.length > 0 ? options.queue : [item];
     const queue = queueToAudioTracks(queueItems, language);
-    const requestedIndex = clamp(options.index ?? queue.findIndex((track) => track.id === item.id), 0, queue.length - 1);
+    const matchedIndex = queue.findIndex((track) => track.id === item.id);
+    const requestedIndex = clamp(matchedIndex >= 0 ? matchedIndex : options.index ?? 0, 0, queue.length - 1);
     const track = queue[requestedIndex] || toAudioTrack(item, language);
 
     set((state) => ({
@@ -264,7 +265,7 @@ export const useAudioStore = create<AudioStoreState & AudioStoreActions>()((set,
   }),
 
   setVolume: (volume) => set({ volume: clamp(volume, 0, 1) }),
-  setSpeed: (speed) => set({ speed: clamp(speed, 0.7, 1.3) }),
+  setSpeed: (speed) => set({ speed: clamp(speed, 0.75, 2) }),
   setVoice: (voice) => set({ voice }),
   setVoiceGender: (voiceGender) => set((state) => state.voiceGender === voiceGender ? state : {
     voiceGender,

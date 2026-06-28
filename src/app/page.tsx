@@ -1,15 +1,12 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { useAppStore } from "@/store/app-store";
-import { useAudioStore } from "@/store/audio-store";
 import { useNewsStore } from "@/store/news-store";
-import type { NewsItem } from "@/types";
-import type { QueueItem } from "@/lib/audio-engine";
-import { useUserStore } from "@/store/user-store";
 import AuthGuard from "@/components/auth/auth-guard";
 import Header from "@/components/header";
 import MobileHome from "@/components/mobile/MobileHome";
 import NewsCard, { type NewsCardLanguage } from "@/components/news-card";
+import AudioNewsPage from "@/components/audio-news/audio-news-page";
 import ToastContainer from "@/components/toast";
 import NewspaperView from "@/components/newspaper/newspaper-intro";
 import ProfilePage from "@/components/auth/profile-page";
@@ -18,9 +15,7 @@ import TrendingSection from "@/components/trending-section";
 import { BreakingNewsBar, TopStory, JustNowFeed, CategoryStrips, AudioNewsStrip } from "@/components/home";
 import { getCategoryEmoji } from "@/lib/category-images";
 import { TAMIL_NADU_NEWS_CATEGORIES } from "@/lib/news-config";
-import { NEWS_SOURCE_SHOWCASE } from "@/lib/source-showcase";
-import { getArticleContentText, getArticleDisplayText } from "@/lib/news-text";
-import { Bookmark, Mic, RefreshCw } from "lucide-react";
+import { Bookmark, RefreshCw } from "lucide-react";
 
 const CATEGORY_ICON_MAP: Record<string, string> = {
   "தமிழ்நாடு அரசியல்": getCategoryEmoji("Politics"),
@@ -45,23 +40,6 @@ function deduplicateById<T extends { id: string }>(items: T[]): T[] {
   return Array.from(seen.values());
 }
 
-function toQueueItem(item: NewsItem): QueueItem {
-  return {
-    id: item.id,
-    headline: item.headline,
-    englishHeadline: item.englishHeadline,
-    imageUrl: item.imageUrl,
-    aiImageUrl: item.aiImageUrl,
-    tamilSummary: getArticleDisplayText(item, "ta"),
-    englishSummary: getArticleDisplayText(item, "en"),
-    content: getArticleContentText(item, "ta"),
-    source: item.source,
-    sourceUrl: item.sourceUrl,
-    category: item.category,
-    publishedAt: item.publishedAt,
-  };
-}
-
 function clearGoogleTranslateState(): void {
   if (typeof document === "undefined") return;
   const cookieTargets = [
@@ -79,8 +57,7 @@ function clearGoogleTranslateState(): void {
 }
 
 export default function HomePage() {
-  const { activeNav, savedArticles = [], setActiveNav, playNews } = useAppStore();
-  const setAudioLanguage = useAudioStore((s) => s.setLanguage);
+  const { activeNav, savedArticles = [], setActiveNav } = useAppStore();
   const storeArticles = useNewsStore((s) => s.articles);
   const hasNewArticles = useNewsStore((s) => s.hasNewArticles);
   const newArticlesCount = useNewsStore((s) => s.newArticlesCount);
@@ -88,15 +65,10 @@ export default function HomePage() {
   const initializeNews = useNewsStore((s) => s.initialize);
   const setCategoryFilter = useNewsStore((s) => s.setCategoryFilter);
 
-  const [mounted, setMounted] = useState(false);
   const [displayLanguage, setDisplayLanguage] = useState<NewsCardLanguage>("ta");
-
-  const streaks = useUserStore((s) => s.getStreaks)();
-  const currentUser = useUserStore((s) => s.currentUser);
 
   useEffect(() => {
     initializeNews();
-    queueMicrotask(() => setMounted(true));
     return () => { useNewsStore.getState().destroy(); };
   }, [initializeNews]);
 
@@ -113,17 +85,6 @@ export default function HomePage() {
   const newsData = useMemo(() => deduplicateById(storeArticles), [storeArticles]);
   const latestNews = useMemo(() => deduplicateById(newsData.filter((n) => n.retention !== "archived")), [newsData]);
   const savedItems = useMemo(() => deduplicateById(newsData.filter((n) => savedArticles.includes(n.id))), [newsData, savedArticles]);
-
-  const sourceCount = useMemo(() => {
-    const liveCount = new Set(latestNews.map((item) => item.source).filter(Boolean)).size;
-    return Math.max(liveCount, NEWS_SOURCE_SHOWCASE.length);
-  }, [latestNews]);
-
-  const handleListenToItem = (item: NewsItem) => {
-    setAudioLanguage(displayLanguage);
-    const queued = toQueueItem(item);
-    playNews(queued, 0, [queued]);
-  };
 
   return (
     <AuthGuard>
@@ -186,18 +147,7 @@ export default function HomePage() {
       )}
 
       {activeNav === "audio-news" && (
-        <main className="max-w-7xl mx-auto px-4 py-8 min-h-screen">
-          <div className="notranslate flex items-center gap-2 mb-6" translate="no">
-            <Mic size={16} className="text-accent" />
-            <h1 className="text-lg font-bold tracking-tight text-foreground">Audio News</h1>
-            <div className="h-px flex-1" style={{ background: "var(--color-border)" }} />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {latestNews.map((item, i) => (
-              <NewsCard key={item.id} item={item} index={i} language={displayLanguage} onLanguageChange={setDisplayLanguage} animatedThumbnail />
-            ))}
-          </div>
-        </main>
+        <AudioNewsPage />
       )}
 
       {activeNav === "saved" && (

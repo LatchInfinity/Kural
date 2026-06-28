@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cleanupStoredArticles, getDbInstance } from "@/lib/db";
-import { type ArticleDbRow, mapArticleRow } from "@/lib/api-utils";
+import { errorMessage, errorStack, type ArticleDbRow, mapArticleRow } from "@/lib/api-utils";
 import { balanceSources } from "@/lib/rss/balancer";
 import { MAX_ARTICLES_HOME, NEWS_PER_CATEGORY, NEWS_RETENTION_MS, TAMIL_NADU_NEWS_CATEGORIES } from "@/lib/news-config";
 import { isDisplayableNewsCategory, isDisplayableNewsItem } from "@/lib/news-policy";
@@ -24,6 +24,12 @@ const ARTICLE_SELECT_FIELDS = `
   slug, search_keywords, tags
 `;
 
+const NO_STORE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate",
+  "Pragma": "no-cache",
+  "Expires": "0",
+};
+
 function limitArticlesPerCategory<T extends { category?: string }>(items: T[]): T[] {
   const counts = new Map<string, number>();
   return items.filter((item) => {
@@ -36,6 +42,7 @@ function limitArticlesPerCategory<T extends { category?: string }>(items: T[]): 
 }
 
 export async function GET(request: NextRequest) {
+  try {
   const db = getDbInstance();
 
   const url = new URL(request.url);
@@ -83,7 +90,7 @@ export async function GET(request: NextRequest) {
           totalPages: 0,
           hasMore: false,
         },
-      });
+      }, { headers: NO_STORE_HEADERS });
     }
     where += " AND category = ?";
     params.push(category);
@@ -183,5 +190,17 @@ export async function GET(request: NextRequest) {
       totalPages: Math.ceil(total / limit),
       hasMore: offset + limit < total,
     },
-  });
+  }, { headers: NO_STORE_HEADERS });
+  } catch (err: unknown) {
+    console.error("[API NEWS ERROR]", {
+      route: "/api/news",
+      url: request.url,
+      message: errorMessage(err),
+      stack: errorStack(err),
+    });
+    return NextResponse.json(
+      { error: "Internal Server Error", message: errorMessage(err) },
+      { status: 500, headers: NO_STORE_HEADERS },
+    );
+  }
 }

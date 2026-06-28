@@ -4,77 +4,35 @@
 
 ▲ Next.js 16.2.6 (webpack)
 - Local:         http://localhost:3000
-- Network:       http://10.62.46.38:3000
+- Network:       http://10.47.72.38:3000
 - Environments: .env.local
-✓ Ready in 1812ms
+✓ Ready in 1703ms
 
-○ Compiling /api/tts/audio/[key] ...
-[AUDIO HTTP STATUS] {
-  cacheKey: '8334d140462064afa32b144beba563b326173d7ab54fa4c4424dbfa718eeaeb1',
-  status: 200,
-  contentType: 'audio/wav',
-  bytes: 331820
-}
- HEAD /api/tts/audio/8334d140462064afa32b144beba563b326173d7ab54fa4c4424dbfa718eeaeb1 200 in 6.3s (next.js: 6.3s, application-code: 77ms)
-[AUDIO HTTP cation STATUS] {
-  cacheKey: '8334d140462064afa32b144beba563b326173d7ab54fa4c4424dbfa718eeaeb1',
-  status: 200,
-  contentType: 'audio/wav',
-  bytes: 331820
-}
- HEAD /api/tts/audio/8334d140462064afa32b144beba563b326173d7ab54fa4c4424dbfa718eeaeb1 200 in 52ms (next.js: 24ms, application-code: 28ms)
-[AUDIO HTTP STATUS] {
-  cacheKey: '8334d140462064afa32b144beba563b326173d7ab54fa4c4424dbfa718eeaeb1',
-  status: 206,
-  contentType: 'audio/wav',
-  bytes: 331820
-}
- GET /api/tts/audio/8334d140462064afa32b144beba563b326173d7ab54fa4c4424dbfa718eeaeb1 206 in 62ms (next.js: 15ms, application-code: 47ms)
- POST /api/tts 400 in 1282ms (next.js: 1239ms, application-code: 43ms)
-[AUDIO START] {
-  cacheKey: '2d5b4015f9cf337212b68a38cd95eadca0cac00e8a1ce2d931e7fa27a3290ea2',
-  newsId: 'audit-sample',
-  language: 'en',
-  gender: 'female',
-  speed: 1,
-  forceRegenerate: false,
-  startedAt: '2026-06-25T08:40:24.721Z'
-}
-[AUDIO FILE EXISTS] {
-  cacheKey: '2d5b4015f9cf337212b68a38cd95eadca0cac00e8a1ce2d931e7fa27a3290ea2',
-  exists: true,
-  path: 'data\\tts-cache\\2d5b4015f9cf337212b68a38cd95eadca0cac00e8a1ce2d931e7fa27a3290ea2.audio',
-  bytes: 262188,
-  contentType: 'audio/wav'
-}
-[AUDIO URL] {
-  cacheKey: '2d5b4015f9cf337212b68a38cd95eadca0cac00e8a1ce2d931e7fa27a3290ea2',
-  url: 'http://localhost:3000/api/tts/audio/2d5b4015f9cf337212b68a38cd95eadca0cac00e8a1ce2d931e7fa27a3290ea2',
-  expires: false
-}
-[AUDIO API RESPONSE] {
-  status: 'ready',
-  cacheKey: '2d5b4015f9cf337212b68a38cd95eadca0cac00e8a1ce2d931e7fa27a3290ea2',
-  cache: 'MISS',
-  provider: 'sarvam',
-  contentType: 'audio/wav',
-  bytes: 262188,
-  startedAt: '2026-06-25T08:40:24.721Z',
-  finishedAt: '2026-06-25T08:40:27.776Z',
-  elapsedMs: 3055
-}
- POST /api/tts 200 in 3.1s (next.js: 12ms, application-code: 3.1s)
-[AUDIO HTTP STATUS] {
-  cacheKey: '2d5b4015f9cf337212b68a38cd95eadca0cac00e8a1ce2d931e7fa27a3290ea2',
-  status: 200,
-  contentType: 'audio/wav',
-  bytes: 262188
-}
- HEAD /api/tts/audio/2d5b4015f9cf337212b68a38cd95eadca0cac00e8a1ce2d931e7fa27a3290ea2 200 in 296ms (next.js: 263ms, application-code: 33ms)
-[AUDIO HTTP STATUS] {
-  cacheKey: '2d5b4015f9cf337212b68a38cd95eadca0cac00e8a1ce2d931e7fa27a3290ea2',
-  status: 206,
-  contentType: 'audio/wav',
-  bytes: 262188
-}
- GET /api/tts/audio/2d5b4015f9cf337212b68a38cd95eadca0cac00e8a1ce2d931e7fa27a3290ea2 206 in 50ms (next.js: 14ms, application-code: 37ms)
+○ Compiling / ...
+[DB Migration] Checking schema...
+[DB Migration] Schema is up to date
+ GET /api/news?retention=active&limit=60&_=1782618313985 200 in 12.9s (next.js: 12.3s, application-code: 599ms)
+ GET /api/news?retention=active&limit=60&_=1782618327057 200 in 61ms (next.js: 25ms, application-code: 36ms)
+ GET / 200 in 27.4s (next.js: 25.1s, application-code: 2.2s)
+ GET /api/events 200 in 29.7s (next.js: 25.7s, application-code: 4.0s)
+ GET /api/news?retention=active&limit=60 200 in 34ms (next.js: 9ms, application-code: 25ms)
+ GET /api/news?retention=active&limit=60&_=1782618340727 200 in 27ms (next.js: 7ms, application-code: 20ms)
+ GET /api/news?district=Chennai&limit=5&retention=active 200 in 26ms (next.js: 6ms, application-code: 20ms)
+[DB Migration] Checking schema...
+[DB Migration] Schema is up to date
+ GET /api/news?retention=active&limit=60&_=1782618341661 200 in 2.5s (next.js: 2.0s, application-code: 491ms)
+ GET /api/news/trending?limit=6 200 in 3.1s (next.js: 2.6s, application-code: 500ms)
+ GET /api/news?district=Chennai&limit=5&retention=active 200 in 3.0s (next.js: 2.5s, application-code: 499ms)
+ GET /api/news/trending?limit=6 200 in 23ms (next.js: 9ms, application-code: 14ms)
+ GET /api/news?district=Chennai 200 in 24ms (next.js: 6ms, application-code: 18ms)
+ GET /api/news/trending 200 in 22ms (next.js: 7ms, application-code: 15ms)
+[DB Migration] Checking schema...
+[DB Migration] Schema is up to date
+ GET /api/news/nonexistent-id 404 in 4.3s (next.js: 4.3s, application-code: 36ms)
+ GET /api/news?retention=active&limit=60&_=1782618400989 200 in 53ms (next.js: 26ms, application-code: 27ms)
+ GET /api/news?retention=active&limit=60&_=1782618461008 200 in 30ms (next.js: 8ms, application-code: 21ms)
+ GET /api/news?retention=active&limit=60 200 in 24ms (next.js: 7ms, application-code: 17ms)
+ GET /api/news?district=Chennai 200 in 23ms (next.js: 4ms, application-code: 18ms)
+ GET /api/news/trending 200 in 47ms (next.js: 31ms, application-code: 16ms)
+ GET /api/news?retention=active&limit=60&_=1782618520996 200 in 19ms (next.js: 4ms, application-code: 15ms)
+[?25h

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef } from "react";
-import { ChevronLeft, ChevronRight, Play, Pause, Clock, Radio } from "lucide-react";
+import { ChevronLeft, ChevronRight, Play, Pause, Radio } from "lucide-react";
 import { useNewsStore } from "@/store/news-store";
 import { useAppStore } from "@/store/app-store";
 import { useAudioStore } from "@/store/audio-store";
@@ -58,7 +58,7 @@ export default function AudioNewsStrip() {
         <div className="flex items-center gap-2 mb-4">
           <Radio size={16} className="text-red-600" />
           <h2 className="text-sm font-black uppercase tracking-[0.12em] text-foreground">
-            Today's Audio News
+            Today&apos;s Audio News
           </h2>
           <div className="h-px flex-1 bg-border" />
           <div className="flex items-center gap-1">
@@ -83,7 +83,7 @@ export default function AudioNewsStrip() {
           ref={scrollRef}
           className="flex gap-4 overflow-x-auto scrollbar-none -mx-4 px-4 pb-2"
         >
-          {recent.map((item) => {
+          {recent.map((item, itemIndex) => {
             const isCurrent = currentTrack?.id === item.id;
             return (
               <div
@@ -107,7 +107,7 @@ export default function AudioNewsStrip() {
                       } else {
                         setAudioLanguage("ta");
                         const queued = toQueueItem(item);
-                        playNews(queued, 0, [queued]);
+                        playNews(queued, itemIndex, recent.map(toQueueItem));
                       }
                     }}
                     className="absolute bottom-2 left-2 p-2 rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors shadow-lg"

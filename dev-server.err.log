@@ -1,0 +1,210 @@
+[DB ERROR] {
+  action: 'open',
+  path: 'C:\\Users\\T460\\Downloads\\kural-fs-runtime-fixed\\kural\\data\\kural.db',
+  message: 'SQLite integrity_check failed: *** in database main ***\n' +
+    'Tree 2 page 811 cell 1: Rowid 878 out of order\n' +
+    'Tree 2 page 2 cell 157: Rowid 309 out of order\n' +
+    'Tree 2 page 693 cell 0: invalid page number 218103808\n' +
+    'Tree 2 page 2 cell 156: Rowid 308 out of order\n' +
+    'Tree 2 page 2 cell 155: Rowid 307 out of order\n' +
+    'Tree 2 page 2 cell 154: Rowid 303 out of order\n' +
+    'Tree 2 page 2 cell 153: Rowid 301 out of order\n' +
+    'Tree 2 page 2 cell 152: Rowid 300 out of order\n' +
+    'Tree 2 page 427 cell 1: Rowid 310 out of order\n' +
+    'Tree 2 page 436 cell 0: Rowid 322 out of order\n' +
+    'Tree 2 page 870 cell 1: Rowid 966 out of order\n' +
+    'Tree 2 page 687: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 912: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 182: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 700 cell 1: overflow list length is 1 but should be 2\n' +
+    'Tree 2 page 700 cell 0: 2nd reference to page 966\n' +
+    'Tree 2 page 2 cell 144: Rowid 289 out of order\n' +
+    'Tree 2 page 294: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 318: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 78: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 305: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 34 cell 0: invalid page number 218103808\n' +
+    'Tree 2 page 175 cell 2: Child page depth differs\n' +
+    'Tree 2 page 96 cell 0: invalid page number 167772160\n' +
+    'Tree 2 page 175 cell 1: Child page depth differs\n' +
+    'Tree 2 page 188: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 2 cell 143: Child page depth differs\n' +
+    'Tree 2 page 2 cell 142: Rowid 285 out of order\n' +
+    'Tree 2 page 2 cell 142: Child page depth differs\n' +
+    'Tree 2 page 2 cell 141: Rowid 284 out of order\n' +
+    'Tree 2 page 1042: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 874: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 742: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 674: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 495: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 467: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 776: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 469 cell 1: invalid page number 218103808\n' +
+    'Tree 2 page 469 cell 0: overflow list length is 1 but should be 2\n' +
+    'Tree 2 page 2 cell 133: Rowid 274 out of order\n' +
+    'Tree 2 page 523 cell 1: overflow list length is 1 but should be 2\n' +
+    'Tree 2 page 2 cell 132: Rowid 273 out of order\n' +
+    'Tree 2 page 380: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 381 cell 0: 2nd reference to page 874\n' +
+    'Tree 2 page 2 cell 130: Rowid 271 out of order\n' +
+    'Tree 2 page 698: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 964: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 260: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 552: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 913: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 992: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 699: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 702: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 440: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 763: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 2 cell 119: Rowid 252 out of order\n' +
+    'Tree 2 page 319: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 2 cell 117: Rowid 250 out of order\n' +
+    'Tree 2 page 271: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 162: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 968: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 141: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 792: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 155: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 2 cell 107: Rowid 235 out of order\n' +
+    'Tree 2 page 2 cell 107: 2nd reference to page 351\n' +
+    'Tree 2 page 2 cell 106: 2nd reference to page 77\n' +
+    'Tree 2 page 131: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 743 cell 1: 2nd reference to page 926\n' +
+    'Tree 2 page 2 cell 103: Rowid 228 out of order\n' +
+    'Tree 2 page 76: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 2 cell 101: Rowid 226 out of order\n' +
+    'Tree 2 page 2 cell 101: 2nd reference to page 926\n' +
+    'Tree 2 page 2 cell 99: Rowid 224 out of order\n' +
+    'Tree 2 page 668 cell 3: 2nd reference to page 182\n' +
+    'Tree 2 page 2 cell 98: Rowid 223 out of order\n' +
+    'Tree 2 page 863: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 2 cell 97: 2nd reference to page 354\n' +
+    'Tree 2 page 2 cell 96: 2nd reference to page 112\n' +
+    'Tree 2 page 2 cell 94: Rowid 217 out of order\n' +
+    'Tree 2 page 967: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 2 cell 92: Rowid 211 out of order\n' +
+    'Tree 2 page 769: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 448: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 2 cell 87: Rowid 206 out of order\n' +
+    'Tree 2 page 519 cell 2: 2nd reference to page 812\n' +
+    'Tree 2 page 519 cell 1: 2nd reference to page 769\n' +
+    'Tree 2 page 2 cell 84: Rowid 198 out of order\n' +
+    'Tree 2 page 824 cell 0: 2nd reference to page 487\n' +
+    'Tree 2 page 2 cell 74: 2nd reference to page 174\n' +
+    'Tree 2 page 2 cell 72: Rowid 182 out of order\n' +
+    'Tree 2 page 703 cell 0: 2nd reference to page 863\n' +
+    'Tree 2 page 2 cell 71: Rowid 162 out of order\n' +
+    'Tree 2 page 2 cell 66: Rowid 122 out of order\n' +
+    'Tree 2 page 255 cell 0: Rowid 123 out of order\n' +
+    'Tree 2 page 2 cell 63: Rowid 92 out of order\n' +
+    'Tree 2 page 143 cell 0: Rowid 93 out of order\n' +
+    'Tree 2 page 2 cell 53: Rowid 78 out of order\n' +
+    'Tree 2 page 306 cell 0: 2nd reference to page 305\n' +
+    'Tree 2 page 55 cell 0: 2nd reference to page 760'
+}
+[DB RECOVERY] {
+  status: 'corrupt_database_quarantined',
+  reason: 'SQLite integrity_check failed: *** in database main ***\n' +
+    'Tree 2 page 811 cell 1: Rowid 878 out of order\n' +
+    'Tree 2 page 2 cell 157: Rowid 309 out of order\n' +
+    'Tree 2 page 693 cell 0: invalid page number 218103808\n' +
+    'Tree 2 page 2 cell 156: Rowid 308 out of order\n' +
+    'Tree 2 page 2 cell 155: Rowid 307 out of order\n' +
+    'Tree 2 page 2 cell 154: Rowid 303 out of order\n' +
+    'Tree 2 page 2 cell 153: Rowid 301 out of order\n' +
+    'Tree 2 page 2 cell 152: Rowid 300 out of order\n' +
+    'Tree 2 page 427 cell 1: Rowid 310 out of order\n' +
+    'Tree 2 page 436 cell 0: Rowid 322 out of order\n' +
+    'Tree 2 page 870 cell 1: Rowid 966 out of order\n' +
+    'Tree 2 page 687: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 912: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 182: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 700 cell 1: overflow list length is 1 but should be 2\n' +
+    'Tree 2 page 700 cell 0: 2nd reference to page 966\n' +
+    'Tree 2 page 2 cell 144: Rowid 289 out of order\n' +
+    'Tree 2 page 294: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 318: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 78: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 305: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 34 cell 0: invalid page number 218103808\n' +
+    'Tree 2 page 175 cell 2: Child page depth differs\n' +
+    'Tree 2 page 96 cell 0: invalid page number 167772160\n' +
+    'Tree 2 page 175 cell 1: Child page depth differs\n' +
+    'Tree 2 page 188: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 2 cell 143: Child page depth differs\n' +
+    'Tree 2 page 2 cell 142: Rowid 285 out of order\n' +
+    'Tree 2 page 2 cell 142: Child page depth differs\n' +
+    'Tree 2 page 2 cell 141: Rowid 284 out of order\n' +
+    'Tree 2 page 1042: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 874: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 742: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 674: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 495: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 467: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 776: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 469 cell 1: invalid page number 218103808\n' +
+    'Tree 2 page 469 cell 0: overflow list length is 1 but should be 2\n' +
+    'Tree 2 page 2 cell 133: Rowid 274 out of order\n' +
+    'Tree 2 page 523 cell 1: overflow list length is 1 but should be 2\n' +
+    'Tree 2 page 2 cell 132: Rowid 273 out of order\n' +
+    'Tree 2 page 380: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 381 cell 0: 2nd reference to page 874\n' +
+    'Tree 2 page 2 cell 130: Rowid 271 out of order\n' +
+    'Tree 2 page 698: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 964: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 260: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 552: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 913: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 992: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 699: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 702: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 440: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 763: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 2 cell 119: Rowid 252 out of order\n' +
+    'Tree 2 page 319: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 2 cell 117: Rowid 250 out of order\n' +
+    'Tree 2 page 271: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 162: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 968: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 141: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 792: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 155: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 2 cell 107: Rowid 235 out of order\n' +
+    'Tree 2 page 2 cell 107: 2nd reference to page 351\n' +
+    'Tree 2 page 2 cell 106: 2nd reference to page 77\n' +
+    'Tree 2 page 131: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 743 cell 1: 2nd reference to page 926\n' +
+    'Tree 2 page 2 cell 103: Rowid 228 out of order\n' +
+    'Tree 2 page 76: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 2 cell 101: Rowid 226 out of order\n' +
+    'Tree 2 page 2 cell 101: 2nd reference to page 926\n' +
+    'Tree 2 page 2 cell 99: Rowid 224 out of order\n' +
+    'Tree 2 page 668 cell 3: 2nd reference to page 182\n' +
+    'Tree 2 page 2 cell 98: Rowid 223 out of order\n' +
+    'Tree 2 page 863: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 2 cell 97: 2nd reference to page 354\n' +
+    'Tree 2 page 2 cell 96: 2nd reference to page 112\n' +
+    'Tree 2 page 2 cell 94: Rowid 217 out of order\n' +
+    'Tree 2 page 967: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 2 cell 92: Rowid 211 out of order\n' +
+    'Tree 2 page 769: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 448: btreeInitPage() returns error code 11\n' +
+    'Tree 2 page 2 cell 87: Rowid 206 out of order\n' +
+    'Tree 2 page 519 cell 2: 2nd reference to page 812\n' +
+    'Tree 2 page 519 cell 1: 2nd reference to page 769\n' +
+    'Tree 2 page 2 cell 84: Rowid 198 out of order\n' +
+    'Tree 2 page 824 cell 0: 2nd reference to page 487\n' +
+    'Tree 2 page 2 cell 74: 2nd reference to page 174\n' +
+    'Tree 2 page 2 cell 72: Rowid 182 out of order\n' +
+    'Tree 2 page 703 cell 0: 2nd reference to page 863\n' +
+    'Tree 2 page 2 cell 71: Rowid 162 out of order\n' +
+    'Tree 2 page 2 cell 66: Rowid 122 out of order\n' +
+    'Tree 2 page 255 cell 0: Rowid 123 out of order\n' +
+    'Tree 2 page 2 cell 63: Rowid 92 out of order\n' +
+    'Tree 2 page 143 cell 0: Rowid 93 out of order\n' +
+    'Tree 2 page 2 cell 53: Rowid 78 out of order\n' +
+    'Tree 2 page 306 cell 0: 2nd reference to page 305\n' +
+    'Tree 2 page 55 cell 0: 2nd reference to page 760',
+  files: [ 'kural.db.corrupt-2026-06-28T03-45-26-670Z' ]
+}

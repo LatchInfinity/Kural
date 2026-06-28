@@ -373,7 +373,7 @@ export const useNewsStore = create<NewsState>()(
 
       fetchFromApi: async () => {
         try {
-          const res = await fetch(`/api/news?retention=active&limit=${MAX_ARTICLES_HOME}&_=` + Date.now());
+          const res = await fetch(`/api/news?retention=active&limit=${MAX_ARTICLES_HOME}&_=` + Date.now(), { cache: "no-store" });
           if (!res.ok) return;
           const data = await res.json() as { articles?: ApiNewsArticle[] };
           if (data.articles && data.articles.length > 0) {
@@ -417,6 +417,7 @@ export const useNewsStore = create<NewsState>()(
             const data = JSON.parse(event.data) as { type?: string; count?: number };
             if (data.type === "new-articles") {
               set({ hasNewArticles: true, newArticlesCount: data.count ?? 0 });
+              void get().fetchFromApi();
             }
             if (data.type === "connected") {
               set({ sseConnected: true });
@@ -441,7 +442,7 @@ export const useNewsStore = create<NewsState>()(
       refresh: async () => {
         set({ loading: true, error: null });
         try {
-          const res = await fetch(`/api/news?retention=active&limit=${MAX_ARTICLES_HOME}&_=` + Date.now());
+          const res = await fetch(`/api/news?retention=active&limit=${MAX_ARTICLES_HOME}&_=` + Date.now(), { cache: "no-store" });
           if (!res.ok) throw new Error("API error");
           const data = await res.json() as { articles?: ApiNewsArticle[] };
           if (data.articles) {

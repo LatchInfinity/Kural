@@ -6,7 +6,8 @@ import { useAppStore } from "@/store/app-store";
 import { useAudioStore } from "@/store/audio-store";
 import { useUserStore } from "@/store/user-store";
 import { getCurrentEdition } from "@/lib/editions";
-import { newsData } from "@/lib/news";
+import { newsData as staticNewsData } from "@/lib/news";
+import { useNewsStore } from "@/store/news-store";
 import DeskEnvironment, { SunMoon, DeskCalendar } from "@/components/newspaper/desk-items";
 import { SceneMotion } from "@/components/news-image-section";
 import { resolveNewsAnimationScene } from "@/lib/news-animation";
@@ -15,6 +16,26 @@ import type { NewsItem, ReactionType } from "@/types";
 
 const CLOSE_DURATION = 1400;
 const OPEN_DURATION = 2000;
+
+function publishedTimeValue(item: NewsItem): number {
+  const value = new Date(item.publishedAt).getTime();
+  return Number.isFinite(value) ? value : 0;
+}
+
+function resolveNewspaperArticles(liveArticles: NewsItem[]): NewsItem[] {
+  const seen = new Map<string, NewsItem>();
+  for (const item of liveArticles) {
+    if (item.retention === "archived") continue;
+    if (!seen.has(item.id)) seen.set(item.id, item);
+  }
+  if (seen.size === 0) {
+    for (const item of staticNewsData) {
+      if (item.retention === "archived") continue;
+      if (!seen.has(item.id)) seen.set(item.id, item);
+    }
+  }
+  return Array.from(seen.values()).sort((a, b) => publishedTimeValue(b) - publishedTimeValue(a));
+}
 
 function normalizeText(value: string): string {
   return value.toLowerCase().replace(/[^\w\s\u0B80-\u0BFF]/g, " ").replace(/\s+/g, " ").trim();
@@ -511,6 +532,8 @@ function FoldedNewspaperComponent({ edition, today, newsData, handleFoldedClick,
 }
 
 export default function NewspaperView() {
+  const liveArticles = useNewsStore(s => s.articles);
+  const fetchLatestNews = useNewsStore(s => s.fetchFromApi);
   const newspaperView = useAppStore(s => s.newspaperView);
   const setNewspaperView = useAppStore(s => s.setNewspaperView);
   const isNewspaperAudioMode = useAppStore(s => s.isNewspaperAudioMode);
@@ -547,13 +570,14 @@ export default function NewspaperView() {
   const isOpen = newspaperView === "open";
   const isClosing = newspaperView === "closing";
 
+  const newsData = useMemo(() => resolveNewspaperArticles(liveArticles), [liveArticles]);
   const totalSpreads = Math.ceil(newsData.length / 2);
   const spreadIndex = isNewspaperAudioMode
     ? Math.min(Math.floor(engineCurrentIndex / 2), totalSpreads - 1)
     : Math.min(manualSpreadIndex, totalSpreads - 1);
 
-  const leftArticle = useMemo(() => newsData[spreadIndex * 2], [spreadIndex]);
-  const rightArticle = useMemo(() => spreadIndex * 2 + 1 < newsData.length ? newsData[spreadIndex * 2 + 1] : null, [spreadIndex]);
+  const leftArticle = useMemo(() => newsData[spreadIndex * 2], [newsData, spreadIndex]);
+  const rightArticle = useMemo(() => spreadIndex * 2 + 1 < newsData.length ? newsData[spreadIndex * 2 + 1] : null, [newsData, spreadIndex]);
   const username = currentUser?.username || "anonymous";
 
   const isLeftActive = isNewspaperAudioMode && engineCurrentIndex === spreadIndex * 2;
@@ -561,6 +585,16 @@ export default function NewspaperView() {
 
   const leftArticleNum = spreadIndex * 2 + 1;
   const rightArticleNum = Math.min(spreadIndex * 2 + 2, newsData.length);
+
+  useEffect(() => {
+    void fetchLatestNews();
+  }, [fetchLatestNews]);
+
+  useEffect(() => {
+    if (manualSpreadIndex >= totalSpreads) {
+      setManualSpreadIndex(Math.max(0, totalSpreads - 1));
+    }
+  }, [manualSpreadIndex, totalSpreads]);
 
   useEffect(() => {
     if (newspaperView === "closed") {
@@ -619,7 +653,7 @@ export default function NewspaperView() {
       }
     }
     setTimeout(() => setIsTurning(false), 600);
-  }, [isTurning, newspaperView, isNewspaperAudioMode, engineCurrentIndex, nextNews, prevNews, manualSpreadIndex, totalSpreads]);
+  }, [isTurning, newspaperView, isNewspaperAudioMode, engineCurrentIndex, newsData.length, nextNews, prevNews, manualSpreadIndex, totalSpreads]);
 
   const today = new Date().toLocaleDateString("ta-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 
@@ -636,7 +670,7 @@ export default function NewspaperView() {
       source: n.source, category: n.category, publishedAt: n.publishedAt,
     })));
     setNewspaperAudioMode(true);
-  }, [playNews, setNewspaperAudioMode]);
+  }, [newsData, playNews, setNewspaperAudioMode]);
 
   const handleReactionFn = useCallback((articleId: string, reaction: ReactionType) => {
     const active = getUserReaction(articleId, username);
@@ -814,19 +848,6 @@ export default function NewspaperView() {
             whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
             <X size={12} className="text-foreground-secondary" />
-          </motion.button>
-          <motion.button
-            onClick={handleOpen}
-            className="absolute bottom-7 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full px-6 py-3 text-sm font-bold text-white shadow-xl cursor-pointer"
-            style={{ background: edition.accent, boxShadow: `0 18px 44px ${edition.accent}45` }}
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.65, duration: 0.4, ease: "easeOut" }}
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.96 }}
-          >
-            <Newspaper size={16} />
-            செய்தித்தாளை திறக்க
           </motion.button>
         </div>
       )}

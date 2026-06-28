@@ -11,6 +11,7 @@ import { getCategoryFallbackImageUrl } from "@/lib/category-images";
 const DB_DIR = process.env.KURAL_DB_DIR
   || (process.env.VERCEL ? path.join("/tmp", "kural-data") : path.join(process.cwd(), "data"));
 const DB_PATH = path.join(DB_DIR, "kural.db");
+const DB_SIDE_CAR_SUFFIXES = ["", "-wal", "-shm", "-journal"] as const;
 
 let db: Database.Database | null = null;
 let appliedSchemaSignature = "";
@@ -240,20 +241,103 @@ function getTableSchemas(): TableSchema[] {
   ];
 }
 
-function getDb(): Database.Database {
-  if (!db) {
-    if (!fs.existsSync(DB_DIR)) {
-      fs.mkdirSync(DB_DIR, { recursive: true });
-    }
-    db = new Database(DB_PATH);
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error || "Unknown error");
+}
+
+function isSqliteCorruptionError(error: unknown): boolean {
+  const message = getErrorMessage(error);
+  return /integrity_check failed|database disk image is malformed|file is not a database|database corruption|SQLITE_CORRUPT|SQLITE_NOTADB/i.test(message);
+}
+
+function verifyDatabaseIntegrity(database: Database.Database): void {
+  const rows = database.prepare("PRAGMA integrity_check").all() as Array<{ integrity_check?: string }>;
+  const failures = rows
+    .map((row) => row.integrity_check || "")
+    .filter((value) => value && value.toLowerCase() !== "ok");
+
+  if (failures.length > 0) {
+    throw new Error(`SQLite integrity_check failed: ${failures.slice(0, 3).join("; ")}`);
+  }
+}
+
+function quarantineDatabaseFiles(reason: string): void {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const moved: string[] = [];
+
+  for (const suffix of DB_SIDE_CAR_SUFFIXES) {
+    const source = `${DB_PATH}${suffix}`;
+    if (!fs.existsSync(source)) continue;
+
+    const target = `${source}.corrupt-${timestamp}`;
+    fs.renameSync(source, target);
+    moved.push(path.basename(target));
+  }
+
+  console.error("[DB RECOVERY]", {
+    status: "corrupt_database_quarantined",
+    reason,
+    files: moved,
+  });
+}
+
+function openDatabase(): Database.Database {
+  if (!fs.existsSync(DB_DIR)) {
+    fs.mkdirSync(DB_DIR, { recursive: true });
+  }
+
+  const database = new Database(DB_PATH);
+  try {
+    verifyDatabaseIntegrity(database);
     try {
-      db.pragma("journal_mode = WAL");
+      database.pragma("journal_mode = WAL");
     } catch {
       // Some serverless filesystems do not support WAL; SQLite still works without it.
     }
-    db.pragma("foreign_keys = ON");
-    initSchema(db);
-    runMigrations(db);
+    database.pragma("foreign_keys = ON");
+    initSchema(database);
+    runMigrations(database);
+  } catch (err) {
+    try {
+      database.close();
+    } catch {
+      // Ignore close errors while surfacing the original open failure.
+    }
+    throw err;
+  }
+  return database;
+}
+
+function recoverDatabaseFromCorruption(reason: string): Database.Database {
+  try {
+    db?.close();
+  } catch {
+    // Ignore close errors while replacing a corrupt database handle.
+  }
+  db = null;
+  appliedSchemaSignature = "";
+  quarantineDatabaseFiles(reason);
+  return openDatabase();
+}
+
+function getDb(): Database.Database {
+  if (!db) {
+    try {
+      db = openDatabase();
+    } catch (err: unknown) {
+      const message = getErrorMessage(err);
+      console.error("[DB ERROR]", {
+        action: "open",
+        path: DB_PATH,
+        message,
+      });
+
+      if (!isSqliteCorruptionError(err)) {
+        throw err;
+      }
+
+      db = recoverDatabaseFromCorruption(message);
+    }
   }
   return db;
 }
@@ -303,11 +387,24 @@ function ensureIndexes(db: Database.Database): void {
 }
 
 export function getDbInstance(): Database.Database {
-  const database = getDb();
-  if (appliedSchemaSignature !== SCHEMA_SIGNATURE) {
-    runMigrations(database);
+  try {
+    const database = getDb();
+    if (appliedSchemaSignature !== SCHEMA_SIGNATURE) {
+      runMigrations(database);
+    }
+    return database;
+  } catch (err: unknown) {
+    if (!isSqliteCorruptionError(err)) throw err;
+
+    const message = getErrorMessage(err);
+    console.error("[DB ERROR]", {
+      action: "recover_open_handle",
+      path: DB_PATH,
+      message,
+    });
+
+    return recoverDatabaseFromCorruption(message);
   }
-  return database;
 }
 
 export function ensureSchema(): void {

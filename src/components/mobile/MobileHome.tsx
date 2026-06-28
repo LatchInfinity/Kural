@@ -60,6 +60,14 @@ function dedupeById(items: NewsItem[]): NewsItem[] {
   return Array.from(seen.values());
 }
 
+function newestFirst(items: NewsItem[]): NewsItem[] {
+  return [...items].sort((a, b) => {
+    const aTime = new Date(a.publishedAt).getTime();
+    const bTime = new Date(b.publishedAt).getTime();
+    return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
+  });
+}
+
 function toQueueItem(item: NewsItem): QueueItem {
   return {
     id: item.id,
@@ -170,6 +178,9 @@ export default function MobileHome() {
     return dedupeById([...priority, ...filteredNews]).filter((item) => item.id !== featured?.id).slice(0, 8);
   }, [featured?.id, filteredNews]);
   const latest = filteredNews.slice(0, 18);
+  const newspaperNews = useMemo(() => newestFirst(newsData), [newsData]);
+  const newspaperFeatured = newspaperNews[0];
+  const newspaperLatest = newspaperNews.slice(0, 18);
 
   const districtCards = useMemo(() => {
     return DISTRICTS.map((district) => {
@@ -266,8 +277,8 @@ export default function MobileHome() {
 
       {nav === "newspaper-view" && (
         <main className="kural-mobile-main">
-          <MobilePageTitle eyebrow="Mobile edition" title="Newspaper" count={newsData.length} />
-          {featured && (
+          <MobilePageTitle eyebrow="Mobile edition" title="Newspaper" count={newspaperNews.length} />
+          {newspaperFeatured && (
             <section className="rounded-lg border border-[var(--mobile-border)] bg-white p-3 shadow-sm">
               <div className="flex items-center gap-3">
                 <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-[var(--mobile-ink)] text-white">
@@ -275,12 +286,12 @@ export default function MobileHome() {
                 </div>
                 <div className="min-w-0">
                   <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--mobile-red)]">Today</p>
-                  <h2 className="line-clamp-2 text-base font-black leading-tight text-[var(--mobile-ink)]">{featured.headline}</h2>
+                  <h2 className="line-clamp-2 text-base font-black leading-tight text-[var(--mobile-ink)]">{newspaperFeatured.headline}</h2>
                 </div>
               </div>
             </section>
           )}
-          <LatestBriefings items={latest} onPlay={playItem} heading="Top Stories" />
+          <LatestBriefings items={newspaperLatest} onPlay={playItem} heading="Top Stories" />
         </main>
       )}
 
