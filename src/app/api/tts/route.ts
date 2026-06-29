@@ -58,6 +58,14 @@ interface SelectedElevenLabsVoice {
 
 const voiceCache = new Map<string, { expiresAt: number; voices: ElevenVoice[] }>();
 
+function cleanEnvToken(value: string | undefined): string {
+  return (value || "")
+    .trim()
+    .replace(/^[`'"\[(]+/, "")
+    .replace(/[`'"\]),;]+$/, "")
+    .trim();
+}
+
 function getElevenLabsApiKeys(): string[] {
   const indexedKeys = [
     process.env.ELEVENLABS_API_KEY_1,
@@ -71,17 +79,22 @@ function getElevenLabsApiKeys(): string[] {
   ].join(",");
 
   return Array.from(new Set(raw
-    .split(/[\s,]+/)
-    .map((key) => key.trim())
+    .split(/[\s,;]+/)
+    .map(cleanEnvToken)
     .filter(Boolean)));
+}
+
+function normalizeElevenLabsVoiceId(value: string | undefined): string {
+  const voiceId = cleanEnvToken(value);
+  return /^[A-Za-z0-9_-]{10,}$/.test(voiceId) ? voiceId : "";
 }
 
 function envElevenLabsVoiceId(language: AudioLang, gender: VoiceGender): string {
   const lang = language.toUpperCase();
   const voiceGender = gender === "auto" ? "FEMALE" : gender.toUpperCase();
   return (
-    process.env[`ELEVENLABS_${lang}_${voiceGender}_VOICE_ID`] ||
-    process.env[`ELEVENLABS_${voiceGender}_VOICE_ID`] ||
+    normalizeElevenLabsVoiceId(process.env[`ELEVENLABS_${lang}_${voiceGender}_VOICE_ID`]) ||
+    normalizeElevenLabsVoiceId(process.env[`ELEVENLABS_${voiceGender}_VOICE_ID`]) ||
     ""
   );
 }
@@ -294,7 +307,7 @@ function ttsCacheKey(text: string, body: TtsBody): string {
   return crypto.createHash("sha256").update(JSON.stringify(payload)).digest("hex");
 }
 
-function normalizeElevenLabsError(message: string): string {
+function normalizeElevenLabsError(message: string, status?: number): string {
   try {
     const parsed = JSON.parse(message) as ElevenLabsErrorResponse;
     if (typeof parsed.detail === "string") message = parsed.detail;
@@ -303,6 +316,7 @@ function normalizeElevenLabsError(message: string): string {
     else if (parsed.error) message = parsed.error;
   } catch {}
 
+  if (status === 401 || status === 403) return "ElevenLabs API key is invalid or not allowed";
   if (/quota|credit|limit.*reached|character/i.test(message)) return "ElevenLabs quota or character limit is not available";
   if (/unauthorized|forbidden|api key|invalid.*key/i.test(message)) return "ElevenLabs API key is invalid or not allowed";
   if (/rate|too many/i.test(message)) return "ElevenLabs rate limit reached";
@@ -312,7 +326,7 @@ function normalizeElevenLabsError(message: string): string {
 function configuredElevenLabsVoiceId(body: TtsBody): string {
   const language = body.language || "ta";
   const gender = body.gender === "male" ? "male" : "female";
-  return body.voiceId || envElevenLabsVoiceId(language, gender) || "";
+  return envElevenLabsVoiceId(language, gender) || normalizeElevenLabsVoiceId(body.voiceId) || "";
 }
 
 function voiceText(voice: ElevenVoice): string {
@@ -470,7 +484,7 @@ export async function POST(request: NextRequest) {
         }
 
         lastStatus = response.status;
-        lastMessage = normalizeElevenLabsError(await response.text().catch(() => response.statusText));
+        lastMessage = normalizeElevenLabsError(await response.text().catch(() => response.statusText), response.status);
         console.log("[TTS FAILURE]", {
           provider: "elevenlabs",
           keyIndex: keyIndex + 1,
@@ -509,10 +523,14 @@ export async function POST(request: NextRequest) {
       cacheKey,
       provider: "elevenlabs",
       error: lastMessage,
+      attemptedKeys: elevenLabsKeys.length,
       httpStatus: lastStatus,
       elapsedMs: Date.now() - startedAt,
     });
-    return NextResponse.json({ error: lastMessage }, { status: lastStatus });
+    const error = elevenLabsKeys.length > 1
+      ? `All ${elevenLabsKeys.length} ElevenLabs API keys failed. Last error: ${lastMessage}`
+      : lastMessage;
+    return NextResponse.json({ error, attemptedKeys: elevenLabsKeys.length }, { status: lastStatus });
   } catch (err) {
     console.log("[AUDIO API RESPONSE]", {
       status: "error",
