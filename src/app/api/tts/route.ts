@@ -85,6 +85,9 @@ function extractElevenLabsKeys(raw: string): string[] {
 }
 
 function getElevenLabsApiKeys(): string[] {
+  const singleKey = extractElevenLabsKeys(process.env.ELEVENLABS_API_KEY || "");
+  if (singleKey[0]) return [singleKey[0]];
+
   const indexedKeys = [
     process.env.ELEVENLABS_API_KEY_1,
     process.env.ELEVENLABS_API_KEY_2,
@@ -92,7 +95,6 @@ function getElevenLabsApiKeys(): string[] {
   ];
   const raw = [
     process.env.ELEVENLABS_API_KEYS || "",
-    process.env.ELEVENLABS_API_KEY || "",
     ...indexedKeys,
   ].join(",");
 
