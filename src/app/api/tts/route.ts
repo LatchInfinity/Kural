@@ -61,9 +61,22 @@ const voiceCache = new Map<string, { expiresAt: number; voices: ElevenVoice[] }>
 function cleanEnvToken(value: string | undefined): string {
   return (value || "")
     .trim()
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
     .replace(/^[`'"\[(]+/, "")
     .replace(/[`'"\]),;]+$/, "")
     .trim();
+}
+
+function extractElevenLabsKeys(raw: string): string[] {
+  const exactKeys = raw.match(/sk_[A-Za-z0-9]{20,}/g) || [];
+  if (exactKeys.length > 0) return exactKeys.map(cleanEnvToken);
+
+  return raw
+    .split(/[\s,;]+/)
+    .map(cleanEnvToken)
+    .map((token) => token.replace(/^ELEVENLABS_API_KEYS?_\d?=/i, ""))
+    .map((token) => token.replace(/^ELEVENLABS_API_KEYS?=/i, ""))
+    .filter((token) => /^sk_[A-Za-z0-9]{20,}$/.test(token));
 }
 
 function getElevenLabsApiKeys(): string[] {
@@ -78,10 +91,7 @@ function getElevenLabsApiKeys(): string[] {
     ...indexedKeys,
   ].join(",");
 
-  return Array.from(new Set(raw
-    .split(/[\s,;]+/)
-    .map(cleanEnvToken)
-    .filter(Boolean)));
+  return Array.from(new Set(extractElevenLabsKeys(raw)));
 }
 
 function normalizeElevenLabsVoiceId(value: string | undefined): string {
