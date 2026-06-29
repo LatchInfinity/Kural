@@ -59,6 +59,10 @@ interface SelectedElevenLabsVoice {
 
 const voiceCache = new Map<string, { expiresAt: number; voices: ElevenVoice[] }>();
 
+function fingerprintSecret(value: string): string {
+  return crypto.createHash("sha256").update(value).digest("hex").slice(0, 12);
+}
+
 function cleanEnvToken(value: string | undefined): string {
   return (value || "")
     .trim()
@@ -93,6 +97,27 @@ function getElevenLabsApiKeys(): string[] {
   ].join(",");
 
   return Array.from(new Set(extractElevenLabsKeys(raw)));
+}
+
+function elevenLabsDiagnostics() {
+  const keys = getElevenLabsApiKeys();
+  return {
+    provider: "elevenlabs",
+    keyCount: keys.length,
+    env: {
+      ELEVENLABS_API_KEYS: Boolean(process.env.ELEVENLABS_API_KEYS),
+      ELEVENLABS_API_KEY: Boolean(process.env.ELEVENLABS_API_KEY),
+      ELEVENLABS_API_KEY_1: Boolean(process.env.ELEVENLABS_API_KEY_1),
+      ELEVENLABS_API_KEY_2: Boolean(process.env.ELEVENLABS_API_KEY_2),
+      ELEVENLABS_API_KEY_3: Boolean(process.env.ELEVENLABS_API_KEY_3),
+    },
+    keys: keys.map((key, index) => ({
+      index: index + 1,
+      fingerprint: fingerprintSecret(key),
+      length: key.length,
+      prefix: key.startsWith("sk_") ? "sk_" : "invalid",
+    })),
+  };
 }
 
 function normalizeElevenLabsVoiceId(value: string | undefined): string {
@@ -465,6 +490,12 @@ function isElevenLabsKeyAuthFailure(status: number, rawMessage: string): boolean
     && !/voice/i.test(rawMessage);
 }
 
+export async function GET() {
+  return NextResponse.json(elevenLabsDiagnostics(), {
+    headers: { "Cache-Control": "no-store" },
+  });
+}
+
 export async function POST(request: NextRequest) {
   const startedAt = Date.now();
   try {
@@ -506,6 +537,7 @@ export async function POST(request: NextRequest) {
           provider: "elevenlabs",
           keyIndex: keyIndex + 1,
           totalKeys: elevenLabsKeys.length,
+          keyFingerprint: fingerprintSecret(elevenLabsKeys[keyIndex]),
           cacheKey,
           newsId: body.newsId || null,
           status: "attempt",
@@ -533,6 +565,7 @@ export async function POST(request: NextRequest) {
             provider: "elevenlabs",
             keyIndex: keyIndex + 1,
             totalKeys: elevenLabsKeys.length,
+            keyFingerprint: fingerprintSecret(elevenLabsKeys[keyIndex]),
             voiceIndex: voiceIndex + 1,
             totalVoices: voices.length,
             status: response.status,
@@ -549,6 +582,7 @@ export async function POST(request: NextRequest) {
           provider: "elevenlabs",
           keyIndex: keyIndex + 1,
           totalKeys: elevenLabsKeys.length,
+          keyFingerprint: fingerprintSecret(elevenLabsKeys[keyIndex]),
           cacheKey,
           newsId: body.newsId || null,
           error: lastMessage,
@@ -573,13 +607,18 @@ export async function POST(request: NextRequest) {
       provider: "elevenlabs",
       error: lastMessage,
       attemptedKeys: elevenLabsKeys.length,
+      diagnostics: elevenLabsDiagnostics(),
       httpStatus: lastStatus,
       elapsedMs: Date.now() - startedAt,
     });
     const error = elevenLabsKeys.length > 1
       ? `All ${elevenLabsKeys.length} ElevenLabs API keys failed. Last error: ${lastMessage}`
       : lastMessage;
-    return NextResponse.json({ error, attemptedKeys: elevenLabsKeys.length }, { status: lastStatus });
+    return NextResponse.json({
+      error,
+      attemptedKeys: elevenLabsKeys.length,
+      diagnostics: elevenLabsDiagnostics(),
+    }, { status: lastStatus });
   } catch (err) {
     console.log("[AUDIO API RESPONSE]", {
       status: "error",
