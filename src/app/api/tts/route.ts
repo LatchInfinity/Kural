@@ -41,6 +41,7 @@ const ELEVENLABS_DEFAULT_VOICES: Record<Exclude<VoiceGender, "auto">, string> = 
   female: "EXAVITQu4vr4xnSDxMaL",
   male: "pNInz6obpgDQGcFmaJgB",
 };
+const ELEVENLABS_DOCS_SAMPLE_VOICE = "JBFqnCBsd6RMkjVDRZzb";
 
 interface ElevenLabsErrorResponse {
   detail?: string | {
@@ -374,41 +375,65 @@ async function fetchElevenLabsVoices(apiKey: string): Promise<ElevenVoice[]> {
   const cached = voiceCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.voices;
 
-  const response = await fetch("https://api.elevenlabs.io/v2/voices", {
-    headers: { "xi-api-key": apiKey },
-    cache: "no-store",
-    signal: AbortSignal.timeout(10000),
-  });
+  try {
+    const response = await fetch("https://api.elevenlabs.io/v2/voices", {
+      headers: { "xi-api-key": apiKey },
+      cache: "no-store",
+      signal: AbortSignal.timeout(5000),
+    });
 
-  if (!response.ok) return [];
-  const data = await response.json() as { voices?: ElevenVoice[] };
-  const voices = Array.isArray(data.voices) ? data.voices : [];
-  voiceCache.set(cacheKey, { voices, expiresAt: Date.now() + 10 * 60 * 1000 });
-  return voices;
+    if (!response.ok) return [];
+    const data = await response.json() as { voices?: ElevenVoice[] };
+    const voices = Array.isArray(data.voices) ? data.voices : [];
+    voiceCache.set(cacheKey, { voices, expiresAt: Date.now() + 10 * 60 * 1000 });
+    return voices;
+  } catch (error) {
+    console.log("[TTS VOICES FAILURE]", {
+      provider: "elevenlabs",
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return [];
+  }
 }
 
-async function selectElevenLabsVoice(apiKey: string, body: TtsBody): Promise<SelectedElevenLabsVoice> {
+function uniqueVoiceCandidates(candidates: SelectedElevenLabsVoice[]): SelectedElevenLabsVoice[] {
+  const seen = new Set<string>();
+  return candidates.filter((candidate) => {
+    if (!candidate.voiceId || seen.has(candidate.voiceId)) return false;
+    seen.add(candidate.voiceId);
+    return true;
+  });
+}
+
+async function selectElevenLabsVoices(apiKey: string, body: TtsBody): Promise<SelectedElevenLabsVoice[]> {
   const language = body.language || "ta";
   const gender = body.gender || "female";
+  const defaultGender = gender === "male" ? "male" : "female";
+  const candidates: SelectedElevenLabsVoice[] = [];
   const configured = configuredElevenLabsVoiceId(body);
   if (configured) {
-    return { voiceId: configured, name: readableVoiceName(language, gender, "ElevenLabs configured") };
+    candidates.push({ voiceId: configured, name: readableVoiceName(language, gender, "ElevenLabs configured") });
   }
 
   const voices = await fetchElevenLabsVoices(apiKey);
   const ranked = [...voices].sort((a, b) => scoreElevenLabsVoice(b, language, gender) - scoreElevenLabsVoice(a, language, gender));
   if (ranked[0]?.voice_id) {
-    return {
+    candidates.push({
       voiceId: ranked[0].voice_id,
       name: ranked[0].name || readableVoiceName(language, gender, "ElevenLabs"),
-    };
+    });
   }
 
-  const defaultGender = gender === "male" ? "male" : "female";
-  return {
+  candidates.push({
     voiceId: ELEVENLABS_DEFAULT_VOICES[defaultGender],
     name: readableVoiceName(language, defaultGender, "ElevenLabs default"),
-  };
+  });
+  candidates.push({
+    voiceId: ELEVENLABS_DOCS_SAMPLE_VOICE,
+    name: readableVoiceName(language, defaultGender, "ElevenLabs sample"),
+  });
+
+  return uniqueVoiceCandidates(candidates);
 }
 
 async function createElevenLabsSpeech(apiKey: string, voiceId: string, body: TtsBody, text: string): Promise<Response> {
@@ -432,6 +457,12 @@ async function createElevenLabsSpeech(apiKey: string, voiceId: string, body: Tts
     }),
     signal: AbortSignal.timeout(30000),
   });
+}
+
+function isElevenLabsKeyAuthFailure(status: number, rawMessage: string): boolean {
+  if (status !== 401 && status !== 403) return false;
+  return /invalid.*api|api.*key|xi-api-key|unauthorized|forbidden/i.test(rawMessage)
+    && !/voice/i.test(rawMessage);
 }
 
 export async function POST(request: NextRequest) {
@@ -479,31 +510,39 @@ export async function POST(request: NextRequest) {
           newsId: body.newsId || null,
           status: "attempt",
         });
-        const selectedVoice = await selectElevenLabsVoice(elevenLabsKeys[keyIndex], body);
-        const response = await createElevenLabsSpeech(elevenLabsKeys[keyIndex], selectedVoice.voiceId, body, text);
-        if (response.ok) {
-          const audio = Buffer.from(await response.arrayBuffer());
-          const info = await saveCachedAudio(cacheKey, audio, {
-            provider: "elevenlabs",
-            contentType: response.headers.get("content-type") || "audio/mpeg",
-            voiceId: selectedVoice.voiceId,
-            voiceName: selectedVoice.name,
-            createdAt: new Date().toISOString(),
-          }, body.newsId);
-          return readyAudioResponse(request, cacheKey, info, "MISS", startedAt);
-        }
+        const voices = await selectElevenLabsVoices(elevenLabsKeys[keyIndex], body);
+        for (let voiceIndex = 0; voiceIndex < voices.length; voiceIndex += 1) {
+          const selectedVoice = voices[voiceIndex];
+          const response = await createElevenLabsSpeech(elevenLabsKeys[keyIndex], selectedVoice.voiceId, body, text);
+          if (response.ok) {
+            const audio = Buffer.from(await response.arrayBuffer());
+            const info = await saveCachedAudio(cacheKey, audio, {
+              provider: "elevenlabs",
+              contentType: response.headers.get("content-type") || "audio/mpeg",
+              voiceId: selectedVoice.voiceId,
+              voiceName: selectedVoice.name,
+              createdAt: new Date().toISOString(),
+            }, body.newsId);
+            return readyAudioResponse(request, cacheKey, info, "MISS", startedAt);
+          }
 
-        lastStatus = response.status;
-        lastMessage = normalizeElevenLabsError(await response.text().catch(() => response.statusText), response.status);
-        console.log("[TTS FAILURE]", {
-          provider: "elevenlabs",
-          keyIndex: keyIndex + 1,
-          totalKeys: elevenLabsKeys.length,
-          status: response.status,
-          cacheKey,
-          newsId: body.newsId || null,
-          error: lastMessage,
-        });
+          const rawMessage = await response.text().catch(() => response.statusText);
+          lastStatus = response.status;
+          lastMessage = normalizeElevenLabsError(rawMessage, response.status);
+          console.log("[TTS FAILURE]", {
+            provider: "elevenlabs",
+            keyIndex: keyIndex + 1,
+            totalKeys: elevenLabsKeys.length,
+            voiceIndex: voiceIndex + 1,
+            totalVoices: voices.length,
+            status: response.status,
+            cacheKey,
+            newsId: body.newsId || null,
+            error: lastMessage,
+          });
+
+          if (isElevenLabsKeyAuthFailure(response.status, rawMessage)) break;
+        }
       } catch (err) {
         lastMessage = normalizeElevenLabsError(err instanceof Error ? err.message : String(err));
         console.log("[TTS FAILURE]", {
