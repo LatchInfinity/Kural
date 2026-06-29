@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useAudioStore } from "@/store/audio-store";
 import type { AudioProvider, AudioTrack } from "@/lib/audio-engine";
+import { getArticleSpeechText, isMostlyTamil } from "@/lib/news-text";
 
 interface GlobalAudioProviderProps {
   children: ReactNode;
@@ -105,6 +106,24 @@ async function createTamilNarration(track: AudioTrack, signal: AbortSignal): Pro
 
   const data = await response.json() as { narration?: string };
   return (data.narration || track.script).trim();
+}
+
+function createEnglishNarration(track: AudioTrack): string {
+  const script = (track.script || "").trim();
+  if (script && !isMostlyTamil(script)) return script;
+
+  const englishTrack = {
+    ...track,
+    englishHeadline: track.englishHeadline && !isMostlyTamil(track.englishHeadline) ? track.englishHeadline : "",
+    englishSummary: track.englishSummary && !isMostlyTamil(track.englishSummary) ? track.englishSummary : "",
+  };
+  const narration = getArticleSpeechText(englishTrack, "en").trim();
+  if (narration && !isMostlyTamil(narration)) return narration;
+
+  return [
+    englishTrack.englishHeadline || track.title || track.headline,
+    englishTrack.englishSummary || track.articleText || track.content || script,
+  ].filter(Boolean).join(". ").trim();
 }
 
 async function probeAudioUrl(audioUrl: string, signal: AbortSignal): Promise<void> {
@@ -240,6 +259,7 @@ export default function GlobalAudioProvider({ children }: GlobalAudioProviderPro
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const lastEndedAdvanceRef = useRef<string>("");
+  const autoPlayTrackRef = useRef<string>("");
 
   const currentTrack = useAudioStore((s) => s.currentTrack);
   const language = useAudioStore((s) => s.language);
@@ -338,8 +358,11 @@ export default function GlobalAudioProvider({ children }: GlobalAudioProviderPro
       lastEndedAdvanceRef.current = endedKey;
 
       if (state.currentIndex < state.queue.length - 1) {
+        const nextTrack = state.queue[state.currentIndex + 1];
+        autoPlayTrackRef.current = nextTrack?.articleId || nextTrack?.id || "";
         state.next();
       } else {
+        autoPlayTrackRef.current = "";
         state.finishTrack();
       }
     };
@@ -389,6 +412,7 @@ export default function GlobalAudioProvider({ children }: GlobalAudioProviderPro
     lastEndedAdvanceRef.current = "";
 
     if (!currentTrack) {
+      autoPlayTrackRef.current = "";
       audio.pause();
       audio.removeAttribute("src");
       audio.load();
@@ -408,7 +432,7 @@ export default function GlobalAudioProvider({ children }: GlobalAudioProviderPro
       try {
         const narration = language === "ta"
           ? await createTamilNarration(currentTrack, controller.signal)
-          : (currentTrack.script || currentTrack.articleText || currentTrack.title).trim();
+          : createEnglishNarration(currentTrack);
 
         if (controller.signal.aborted) return;
 
@@ -450,9 +474,13 @@ export default function GlobalAudioProvider({ children }: GlobalAudioProviderPro
             const notice = ready.voiceName ? `Voice: ${ready.voiceName}` : null;
             setAudioReady(ready.audioUrl, narration, provider, notice);
 
-            if (useAudioStore.getState().isPlaying) {
+            const shouldPlay = useAudioStore.getState().isPlaying || autoPlayTrackRef.current === currentTrack.articleId;
+            if (shouldPlay) {
               try {
+                useAudioStore.getState().play();
+                audio.currentTime = 0;
                 await audio.play();
+                autoPlayTrackRef.current = "";
               } catch (err) {
                 const name = err instanceof DOMException ? err.name : "";
                 if (name === "NotAllowedError") {

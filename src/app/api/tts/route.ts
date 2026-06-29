@@ -94,7 +94,21 @@ interface SelectedElevenLabsVoice {
 const voiceCache = new Map<string, { expiresAt: number; voices: ElevenVoice[] }>();
 
 function getSarvamApiKeys(): string[] {
-  return [];
+  const indexedKeys = [
+    process.env.SARVAM_API_KEY_1,
+    process.env.SARVAM_API_KEY_2,
+    process.env.SARVAM_API_KEY_3,
+  ];
+  const raw = [
+    process.env.SARVAM_API_KEYS || "",
+    process.env.SARVAM_API_KEY || "",
+    ...indexedKeys,
+  ].join(",");
+
+  return Array.from(new Set(raw
+    .split(/[\s,]+/)
+    .map((key) => key.trim())
+    .filter(Boolean)));
 }
 
 function getElevenLabsApiKeys(): string[] {
@@ -116,7 +130,7 @@ function getElevenLabsApiKeys(): string[] {
 }
 
 function getOpenAiApiKey(): string {
-  return "";
+  return process.env.OPENAI_TTS_API_KEY || process.env.OPENAI_API_KEY || "";
 }
 
 function envSarvamSpeaker(language: AudioLang, gender: VoiceGender): string {
@@ -764,10 +778,10 @@ export async function POST(request: NextRequest) {
         status: "error",
         cacheKey,
         provider: "none",
-        error: "No ElevenLabs TTS API key is configured",
+        error: "No TTS API key is configured",
         elapsedMs: Date.now() - startedAt,
       });
-      return NextResponse.json({ error: "No ElevenLabs TTS API key is configured" }, { status: 501 });
+      return NextResponse.json({ error: "No TTS API key is configured" }, { status: 501 });
     }
 
     console.log("[AUDIO API RESPONSE]", {

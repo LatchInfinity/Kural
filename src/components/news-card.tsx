@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Bookmark, Share2, BookmarkCheck, Clock, Play, Languages } from "lucide-react";
+import { Bookmark, Share2, BookmarkCheck, Clock, ExternalLink, Play, Languages } from "lucide-react";
 import NewsImageSection from "@/components/news-image-section";
 import type { NewsItem } from "@/types";
 import type { QueueItem } from "@/lib/audio-engine";
@@ -169,7 +169,7 @@ export default function NewsCard({
 
     if (activeNav === "audio-news") {
       playNews(playItem, index, storeArticles.map(toQueueItem));
-      setPopupOpen(true);
+      setPopupOpen(false);
     } else {
       playNews(playItem, 0, [playItem]);
     }
@@ -216,7 +216,7 @@ export default function NewsCard({
 
   const ago = useMemo(() => timeAgo(item.publishedAt), [item.publishedAt]);
   const categoryLabel = getCategoryDisplayText(item.category, textLanguage);
-  const languageLabel = language === "ta" ? "தமிழ்" : "English";
+  const languageLabel = language === "ta" ? "Switch voice to English" : "Switch voice to Tamil";
 
   return (
     <article className="kural-news-card group rounded-[22px] overflow-hidden transition-all duration-200 ease-out bg-surface border border-border">
@@ -275,20 +275,34 @@ export default function NewsCard({
           {displaySummary}
         </p>
 
-        <div className="notranslate flex items-center justify-between pt-3 border-t border-border-light" translate="no">
+        <div className="notranslate pt-3 border-t border-border-light" translate="no">
           <div className="min-w-0">
             <div className="text-[10px] uppercase tracking-[0.16em] text-foreground-secondary/40">Source</div>
-            <div className="text-[11px] font-bold text-foreground-secondary/80 truncate max-w-[140px]">{item.source}</div>
+            {item.sourceUrl ? (
+              <a
+                href={item.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex max-w-[140px] items-center gap-1 text-[11px] font-bold text-foreground-secondary/80 transition-colors hover:text-accent"
+                aria-label={`Open original source: ${item.source || "news source"}`}
+              >
+                <span className="truncate">{item.source || "Original source"}</span>
+                <ExternalLink size={11} className="shrink-0" />
+              </a>
+            ) : (
+              <div className="text-[11px] font-bold text-foreground-secondary/80 truncate max-w-[140px]">{item.source}</div>
+            )}
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="mt-3 flex items-center justify-between gap-1.5">
             <button
               onClick={handleLanguageToggle}
-              aria-label={language === "ta" ? "Translate article to English" : "Translate article to Tamil"}
-              className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-2 text-[10px] font-bold text-foreground-secondary/70 hover:text-accent hover:border-accent/20 hover:bg-accent/10 transition-colors cursor-pointer"
+              aria-label={languageLabel}
+              title={languageLabel}
+              className="grid h-9 w-9 place-items-center rounded-full border border-border text-foreground-secondary/70 hover:text-accent hover:border-accent/20 hover:bg-accent/10 transition-colors cursor-pointer"
             >
               <Languages size={12} />
-              {languageLabel}
             </button>
             <button
               onClick={handlePlay}

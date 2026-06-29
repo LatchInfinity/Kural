@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Pause, Play, SkipBack, SkipForward, X } from "lucide-react";
 import SafeImage from "@/components/safe-image";
+import { useAppStore } from "@/store/app-store";
 import { useAudioStore } from "@/store/audio-store";
 
 function formatTime(seconds: number): string {
@@ -15,6 +16,7 @@ function formatTime(seconds: number): string {
 }
 
 export default function NewspaperMiniPlayer() {
+  const activeNav = useAppStore((s) => s.activeNav);
   const track = useAudioStore((s) => s.currentTrack);
   const title = useAudioStore((s) => s.title);
   const thumbnail = useAudioStore((s) => s.thumbnail);
@@ -32,7 +34,7 @@ export default function NewspaperMiniPlayer() {
 
   const openPopup = useCallback(() => setPopupOpen(true), [setPopupOpen]);
   const pathname = usePathname();
-  const isOnAudioNewsPage = pathname === "/audio-news";
+  const isOnAudioNewsPage = activeNav === "audio-news" || pathname === "/audio-news";
 
   if (!track || isOnAudioNewsPage) return null;
 

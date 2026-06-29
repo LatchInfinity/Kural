@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cleanNewsText, cleanNewsTitle, isMostlyTamil } from "@/lib/news-text";
+import {
+  buildEnglishSummary,
+  cleanNewsText,
+  cleanNewsTitle,
+  getArticleHeadlineText,
+  isMostlyTamil,
+} from "@/lib/news-text";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,6 +17,13 @@ interface TranslateArticleInput {
   summary?: string;
   tamilSummary?: string;
   content?: string;
+}
+
+interface TranslateArticleOutput {
+  id: string;
+  englishHeadline: string;
+  englishSummary: string;
+  provider: "google" | "local";
 }
 
 interface GoogleTranslateResponse {
@@ -55,6 +68,30 @@ function getCachedTranslation(text: string): string | null {
 
 function setCachedTranslation(text: string, value: string): void {
   translationCache.set(cacheKey(text), { value, expiresAt: Date.now() + CACHE_TTL_MS });
+}
+
+function buildLocalTranslations(articles: TranslateArticleInput[]): TranslateArticleOutput[] {
+  return articles.map((article) => {
+    const headline = cleanNewsTitle(article.headline || article.title || "");
+    const summary = cleanNewsText(article.tamilSummary || article.summary || article.content || headline, {
+      maxLength: MAX_SUMMARY_CHARS,
+    });
+    const source = {
+      ...article,
+      headline,
+      title: cleanNewsTitle(article.title || headline),
+      summary,
+      tamilSummary: summary,
+      content: article.content || summary,
+    };
+
+    return {
+      id: article.id || "",
+      englishHeadline: getArticleHeadlineText(source, "en", MAX_HEADLINE_CHARS),
+      englishSummary: buildEnglishSummary(source),
+      provider: "local" as const,
+    };
+  }).filter((article) => article.id);
 }
 
 function normalizeGoogleError(raw: string): string {
@@ -145,10 +182,10 @@ export async function POST(request: NextRequest) {
 
     const apiKey = getGoogleTranslateApiKey();
     if (!apiKey) {
-      return NextResponse.json(
-        { error: "Google Translate is not configured. Set GOOGLE_TRANSLATE_API_KEY.", provider: "local" },
-        { status: 501 },
-      );
+      return NextResponse.json({
+        articles: buildLocalTranslations(articles),
+        provider: "local",
+      });
     }
 
     const textsToTranslate: string[] = [];

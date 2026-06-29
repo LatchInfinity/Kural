@@ -1,7 +1,7 @@
 "use client";
 import { useState, useCallback, useEffect, useRef, useMemo, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, X, Volume2, Heart, TrendingUp, Star, ThumbsUp, Newspaper } from "lucide-react";
+import { Bookmark, BookmarkCheck, ChevronLeft, ChevronRight, ExternalLink, Heart, Languages, Newspaper, Share2, Star, ThumbsUp, TrendingUp, Volume2, X } from "lucide-react";
 import { useAppStore } from "@/store/app-store";
 import { useAudioStore } from "@/store/audio-store";
 import { useUserStore } from "@/store/user-store";
@@ -12,6 +12,7 @@ import DeskEnvironment, { SunMoon, DeskCalendar } from "@/components/newspaper/d
 import { SceneMotion } from "@/components/news-image-section";
 import { resolveNewsAnimationScene } from "@/lib/news-animation";
 import { getCategoryFallbackImageUrl } from "@/lib/category-images";
+import { getArticleDisplayText, getArticleHeadlineText } from "@/lib/news-text";
 import type { NewsItem, ReactionType } from "@/types";
 
 const CLOSE_DURATION = 1400;
@@ -233,11 +234,54 @@ const PageCard = memo(function PageCard({ article, isActive, edition, handlePlay
 }) {
   const articleReactions = useAppStore(s => s.articleReactions);
   const getUserReaction = useAppStore(s => s.getUserReaction);
+  const savedArticles = useAppStore(s => s.savedArticles);
+  const saveArticle = useAppStore(s => s.saveArticle);
+  const unsaveArticle = useAppStore(s => s.unsaveArticle);
+  const addToast = useAppStore(s => s.addToast);
   const username = useUserStore(s => s.currentUser?.username || "anonymous");
+  const updateDailyTask = useUserStore(s => s.updateDailyTaskProgress);
+  const setAudioLanguage = useAudioStore(s => s.setLanguage);
+  const [language, setLanguage] = useState<"ta" | "en">("ta");
 
   const counts = articleReactions[article.id] || {};
   const totalReactions = Object.keys(counts).length;
   const activeReaction = getUserReaction(article.id, username);
+  const isSaved = savedArticles.includes(article.id);
+  const headline = getArticleHeadlineText(article, language);
+  const summary = getArticleDisplayText(article, language);
+  const languageLabel = language === "ta" ? "Switch to English" : "Switch to Tamil";
+
+  const handleShare = async () => {
+    updateDailyTask("share-article", 1);
+    const url = article.sourceUrl || (typeof window !== "undefined" ? window.location.href : "");
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({ title: headline, text: summary, url });
+        return;
+      } catch (err: unknown) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(url);
+      addToast("Link copied ✓");
+    } catch {
+      addToast("Could not copy link", "error");
+    }
+  };
+
+  const handleSave = () => {
+    if (isSaved) {
+      unsaveArticle(article.id);
+      addToast("Article removed from saved");
+      return;
+    }
+
+    saveArticle(article.id);
+    addToast("Article saved ✓");
+    updateDailyTask("save-articles", 1);
+  };
 
   return (
     <div
@@ -285,7 +329,7 @@ const PageCard = memo(function PageCard({ article, isActive, edition, handlePlay
         </div>
 
         <h3 className="text-[11px] font-bold leading-snug mb-2 line-clamp-2 flex-shrink-0" style={{ color: "#1a1a1a" }}>
-          {article.headline}
+          {headline}
         </h3>
 
         <div className="relative w-full mb-2 overflow-hidden rounded-sm flex-shrink-0">
@@ -294,14 +338,28 @@ const PageCard = memo(function PageCard({ article, isActive, edition, handlePlay
 
         <div className="flex-1 overflow-y-auto min-h-0 scrollbar-thin">
           <p className="text-[8px] leading-relaxed" style={{ color: "#555" }}>
-            {article.tamilSummary || article.englishSummary}
+            {summary}
           </p>
         </div>
 
         <div className="pt-1.5 pb-0.5 flex-shrink-0" style={{ borderTop: "1px solid #e8e8e8" }}>
           <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-2">
-              <span className="text-[7px] font-medium" style={{ color: "#888" }}>{article.source}</span>
+              {article.sourceUrl ? (
+                <a
+                  href={article.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-0.5 text-[7px] font-medium"
+                  style={{ color: "#888" }}
+                  title="Original source"
+                >
+                  <span>{article.source}</span>
+                  <ExternalLink size={7} />
+                </a>
+              ) : (
+                <span className="text-[7px] font-medium" style={{ color: "#888" }}>{article.source}</span>
+              )}
               <span className="text-[6px]" style={{ color: "#aaa" }}>{article.publishedAt}</span>
             </div>
             {!isActive && (
@@ -330,6 +388,42 @@ const PageCard = memo(function PageCard({ article, isActive, edition, handlePlay
               {totalReactions > 0 && (
                 <span className="text-[7px] font-medium ml-0.5" style={{ color: "#999" }}>{totalReactions}</span>
               )}
+            </div>
+            <div className="flex items-center gap-0.5">
+              <button
+                type="button"
+                onClick={() => {
+                  const next = language === "ta" ? "en" : "ta";
+                  setLanguage(next);
+                  setAudioLanguage(next);
+                }}
+                className="grid h-5 w-5 place-items-center rounded-sm transition-colors cursor-pointer"
+                style={{ color: "#999" }}
+                title={languageLabel}
+                aria-label={languageLabel}
+              >
+                <Languages size={9} />
+              </button>
+              <button
+                type="button"
+                onClick={() => { void handleShare(); }}
+                className="grid h-5 w-5 place-items-center rounded-sm transition-colors cursor-pointer"
+                style={{ color: "#999" }}
+                title="Share"
+                aria-label="Share article"
+              >
+                <Share2 size={9} />
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                className="grid h-5 w-5 place-items-center rounded-sm transition-colors cursor-pointer"
+                style={{ color: isSaved ? edition.accent : "#999" }}
+                title={isSaved ? "Unsave" : "Save"}
+                aria-label={isSaved ? "Unsave article" : "Save article"}
+              >
+                {isSaved ? <BookmarkCheck size={9} style={{ fill: edition.accent }} /> : <Bookmark size={9} />}
+              </button>
             </div>
           </div>
         </div>
@@ -662,12 +756,12 @@ export default function NewspaperView() {
       id: item.id, headline: item.headline, englishHeadline: item.englishHeadline, imageUrl: item.imageUrl,
       tamilSummary: item.tamilSummary, englishSummary: item.englishSummary,
       content: item.content,
-      source: item.source, category: item.category, publishedAt: item.publishedAt,
+      source: item.source, sourceUrl: item.sourceUrl, category: item.category, publishedAt: item.publishedAt,
     }, newsData.indexOf(item), newsData.map(n => ({
       id: n.id, headline: n.headline, englishHeadline: n.englishHeadline, imageUrl: n.imageUrl,
       tamilSummary: n.tamilSummary, englishSummary: n.englishSummary,
       content: n.content,
-      source: n.source, category: n.category, publishedAt: n.publishedAt,
+      source: n.source, sourceUrl: n.sourceUrl, category: n.category, publishedAt: n.publishedAt,
     })));
     setNewspaperAudioMode(true);
   }, [newsData, playNews, setNewspaperAudioMode]);
